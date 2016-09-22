@@ -79,7 +79,7 @@ app_main_loop_rx(void) {
 	uint32_t i;
 	int ret;
 
-	RTE_LOG(INFO, USER1, "Core %u is doing RX\n", rte_lcore_id());
+	RTE_LOG(INFO, SWITCH, "Core %u is doing RX\n", rte_lcore_id());
 
 	for (i = 0; ; i = ((i + 1) & (app.n_ports - 1))) {
 		uint16_t n_mbufs;
@@ -105,9 +105,12 @@ app_main_loop_rx(void) {
 void
 app_main_loop_worker(void) {
 	struct app_mbuf_array *worker_mbuf;
-	uint32_t i;
+    struct ether_hdr *eth;
+    struct rte_mbuf* new_pkt;
+	uint32_t i, j;
+    int dst_port;
 
-	RTE_LOG(INFO, USER1, "Core %u is doing work (no pipeline)\n",
+	RTE_LOG(INFO, SWITCH, "Core %u is doing work (no pipeline)\n",
 		rte_lcore_id());
 
 	worker_mbuf = rte_malloc_socket(NULL, sizeof(struct app_mbuf_array),
@@ -118,20 +121,55 @@ app_main_loop_worker(void) {
 	for (i = 0; ; i = ((i + 1) & (app.n_ports - 1))) {
 		int ret;
 
-		ret = rte_ring_sc_dequeue_bulk(
+		/*ret = rte_ring_sc_dequeue_bulk(
 			app.rings_rx[i],
 			(void **) worker_mbuf->array,
-			app.burst_size_worker_read);
+			app.burst_size_worker_read);*/
+		ret = rte_ring_sc_dequeue(
+			app.rings_rx[i],
+			(void **) worker_mbuf->array);
 
 		if (ret == -ENOENT)
 			continue;
 
-		do {
+        // l2 learning
+        eth = rte_pktmbuf_mtod(worker_mbuf->array[0], struct ether_hdr*);
+        app_l2_learning(&(eth->s_addr), i);
+
+        // l2 forward
+        dst_port = app_l2_lookup(&(eth->d_addr));
+        if (dst_port < 0) { /* broadcast */
+	        RTE_LOG(DEBUG, SWITCH, "%s: broadcast packets\n", __func__);
+			for (j = 0; j < app.n_ports; j++) {
+				if (j == i) {
+					continue;
+				} else if (j == (i ^ 1)) {
+                    rte_ring_sp_enqueue(
+                        app.rings_tx[j],
+                        worker_mbuf->array[0]
+                    );
+				} else {
+					new_pkt = rte_pktmbuf_clone(worker_mbuf->array[0], app.pool);
+                    rte_ring_sp_enqueue(
+                        app.rings_tx[j],
+                        new_pkt
+                    );
+				}
+			}
+        } else {
+	        RTE_LOG(DEBUG, SWITCH, "%s: forward packet to %d\n", __func__, dst_port);
+            rte_ring_sp_enqueue(
+                app.rings_tx[dst_port],
+                worker_mbuf->array[0]
+            );
+        }
+
+		/*do {
 			ret = rte_ring_sp_enqueue_bulk(
 				app.rings_tx[i ^ 1],
 				(void **) worker_mbuf->array,
 				app.burst_size_worker_write);
-		} while (ret < 0);
+		} while (ret < 0);*/
 	}
 }
 
@@ -139,7 +177,7 @@ void
 app_main_loop_tx(void) {
 	uint32_t i;
 
-	RTE_LOG(INFO, USER1, "Core %u is doing TX\n", rte_lcore_id());
+	RTE_LOG(INFO, SWITCH, "Core %u is doing TX\n", rte_lcore_id());
 
 	for (i = 0; ; i = ((i + 1) & (app.n_ports - 1))) {
 		uint16_t n_mbufs, n_pkts;
@@ -156,6 +194,8 @@ app_main_loop_tx(void) {
 			continue;
 
 		n_mbufs += app.burst_size_tx_read;
+
+	    RTE_LOG(DEBUG, SWITCH, "%s: port %u receive %u packets\n", __func__, i, n_mbufs);
 
 		if (n_mbufs < app.burst_size_tx_write) {
 			app.mbuf_tx[i].n_mbufs = n_mbufs;

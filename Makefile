@@ -48,6 +48,7 @@ SRCS-y := main.c
 SRCS-y += config.c
 SRCS-y += init.c
 SRCS-y += runtime.c
+SRCS-y += forwarding.c
 
 # this application needs libraries first
 DEPDIRS-y += lib drivers

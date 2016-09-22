@@ -74,14 +74,14 @@
 
 #include "main.h"
 
-struct app_params app;
+// struct app_params app;
 
-static const char usage[] = "\n";
+static const char usage[] = "./<app name> [EAL options] -- -p PORTMASK\n";
 
 void
 app_print_usage(void)
 {
-	printf(usage);
+	printf("USAGE: %s", usage);
 }
 
 static int
@@ -98,23 +98,41 @@ app_parse_port_mask(const char *arg)
 	if ((end == NULL) || (*end != '\0'))
 		return -2;
 
-	if (port_mask == 0)
+	if (port_mask == 0) {
+        RTE_LOG(
+            ERR, SWITCH,
+            "%s: no port specified\n",
+            __func__
+        );
 		return -3;
+    }
 
 	app.n_ports = 0;
 	for (i = 0; i < 64; i++) {
 		if ((port_mask & (1LLU << i)) == 0)
 			continue;
 
-		if (app.n_ports >= APP_MAX_PORTS)
+		if (app.n_ports >= APP_MAX_PORTS) {
+            RTE_LOG(
+                ERR, SWITCH,
+                "%s: # of ports (%u) is larger than maximum supported port number (%u)\n",
+                __func__, app.n_ports, APP_MAX_PORTS
+            );
 			return -4;
+        }
 
 		app.ports[app.n_ports] = i;
 		app.n_ports++;
 	}
 
-	if (!rte_is_power_of_2(app.n_ports))
+	if (!rte_is_power_of_2(app.n_ports)) {
+        RTE_LOG(
+            WARNING, SWITCH,
+            "%s: # of ports (%u) is not power of 2\n",
+            __func__, app.n_ports
+        );
 		return -5;
+    }
 
 	return 0;
 }
@@ -138,8 +156,7 @@ app_parse_args(int argc, char **argv)
 			continue;
 
 		if (n_lcores >= 3) {
-			RTE_LOG(ERR, USER1, "Number of cores must be 3\n");
-			app_print_usage();
+			RTE_LOG(ERR, SWITCH, "Number of cores must be 3\n");
 			return -1;
 		}
 
@@ -148,8 +165,7 @@ app_parse_args(int argc, char **argv)
 	}
 
 	if (n_lcores != 3) {
-		RTE_LOG(ERR, USER1, "Number of cores must be 3\n");
-		app_print_usage();
+		RTE_LOG(ERR, SWITCH, "# of cores must be 3\n");
 		return -1;
 	}
 
@@ -165,7 +181,6 @@ app_parse_args(int argc, char **argv)
 		switch (opt) {
 		case 'p':
 			if (app_parse_port_mask(optarg) < 0) {
-				app_print_usage();
 				return -1;
 			}
 			break;

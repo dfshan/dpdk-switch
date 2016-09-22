@@ -41,6 +41,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <getopt.h>
+#include <string.h>
 
 #include <rte_common.h>
 #include <rte_byteorder.h>
@@ -71,6 +72,8 @@
 #include <rte_tcp.h>
 #include <rte_lpm.h>
 #include <rte_lpm6.h>
+#include <rte_hash.h>
+#include <rte_hash_crc.h>
 
 #include "main.h"
 
@@ -92,10 +95,14 @@ struct app_params app = {
 	/* Burst sizes */
 	.burst_size_rx_read = 64,
 	.burst_size_rx_write = 64,
-	.burst_size_worker_read = 64,
-	.burst_size_worker_write = 64,
-	.burst_size_tx_read = 64,
-	.burst_size_tx_write = 64,
+	.burst_size_worker_read = 1,
+	.burst_size_worker_write = 1,
+	.burst_size_tx_read = 1,
+	.burst_size_tx_write = 1,
+
+    /* forwarding things */
+    .ft_name = "Forwarding Table",
+    .l2_hash = NULL,
 };
 
 static struct rte_eth_conf port_conf = {
@@ -142,7 +149,7 @@ static void
 app_init_mbuf_pools(void)
 {
 	/* Init the buffer pool */
-	RTE_LOG(INFO, USER1, "Creating the mbuf pool ...\n");
+	RTE_LOG(INFO, SWITCH, "Creating the mbuf pool ...\n");
 	app.pool = rte_pktmbuf_pool_create("mempool", app.pool_size,
 		app.pool_cache_size, 0, app.pool_buffer_size, rte_socket_id());
 	if (app.pool == NULL)
@@ -200,7 +207,7 @@ app_ports_check_link(void)
 		port = (uint8_t) app.ports[i];
 		memset(&link, 0, sizeof(link));
 		rte_eth_link_get(port, &link);
-		RTE_LOG(INFO, USER1, "Port %u (%u Gbps) %s\n",
+		RTE_LOG(INFO, SWITCH, "Port %u (%u Gbps) %s\n",
 			port,
 			link.link_speed / 1000,
 			link.link_status ? "UP" : "DOWN");
@@ -224,7 +231,7 @@ app_init_ports(void)
 		int ret;
 
 		port = (uint8_t) app.ports[i];
-		RTE_LOG(INFO, USER1, "Initializing NIC port %u ...\n", port);
+		RTE_LOG(INFO, SWITCH, "Initializing NIC port %u ...\n", port);
 
 		/* Init port */
 		ret = rte_eth_dev_configure(
@@ -269,12 +276,36 @@ app_init_ports(void)
 	app_ports_check_link();
 }
 
+
+int app_init_forwarding_table(const char* tname) {
+	size_t name_len = strlen(tname);
+	if (name_len > MAX_NAME_LEN) {
+		RTE_LOG(ERR, HASH, "%s: ERROR when init forward table: table name too long\n", __func__);
+		return -1;
+	}
+	rte_memcpy(app.ft_name, tname, name_len);
+	struct rte_hash_parameters hash_params = {
+		.name = app.ft_name,
+		.entries = FORWARD_ENTRY,
+		.key_len = sizeof(struct ether_addr),
+		.hash_func = rte_hash_crc,
+		.hash_func_init_val = 0,
+	};
+	app.l2_hash = rte_hash_create(&hash_params);
+	if (app.l2_hash == NULL) {
+		RTE_LOG(ERR, HASH, "%s: ERROR when create hash table.\n", __func__);
+		return -1;
+	}
+	return 0;
+}
+
 void
 app_init(void)
 {
 	app_init_mbuf_pools();
 	app_init_rings();
 	app_init_ports();
+    app_init_forwarding_table("forwarding table");
 
-	RTE_LOG(INFO, USER1, "Initialization completed\n");
+	RTE_LOG(INFO, SWITCH, "Initialization completed\n");
 }

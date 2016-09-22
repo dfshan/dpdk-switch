@@ -34,9 +34,20 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
+#include <stdint.h>
+
 #ifndef APP_MBUF_ARRAY_SIZE
 #define APP_MBUF_ARRAY_SIZE 256
 #endif
+
+#define RTE_LOGTYPE_SWITCH RTE_LOGTYPE_USER1
+
+#undef RTE_LOG_LEVEL
+#define RTE_LOG_LEVEL RTE_LOG_DEBUG
+
+#define FORWARD_ENTRY 10 // # of forwarding table entries
+#define MAX_NAME_LEN 100
+#define VALID_TIME INT_MAX // valid time (in ms) for a forwarding item
 
 struct app_mbuf_array {
 	struct rte_mbuf *array[APP_MBUF_ARRAY_SIZE];
@@ -46,6 +57,11 @@ struct app_mbuf_array {
 #ifndef APP_MAX_PORTS
 #define APP_MAX_PORTS 4
 #endif
+
+struct app_fwd_table_item {
+	uint8_t port_id;
+	struct timeval timestamp; // the time when the item is added
+};
 
 struct app_params {
 	/* CPU cores */
@@ -85,6 +101,11 @@ struct app_params {
 
 	/* App behavior */
 	// uint32_t pipeline_type;
+    
+    /* things about forwarding table */
+    struct app_fwd_table_item fwd_table[FORWARD_ENTRY];
+    char ft_name[MAX_NAME_LEN]; /* forward table name */
+    struct rte_hash* l2_hash;
 } __rte_cache_aligned;
 
 extern struct app_params app;
@@ -97,6 +118,23 @@ int app_lcore_main_loop(void *arg);
 void app_main_loop_rx(void);
 void app_main_loop_worker(void);
 void app_main_loop_tx(void);
+
+/*
+ * Initialize forwarding table.
+ * Return 0 when OK, -1 when there is error.
+ */
+int app_init_forwarding_table(const char *tname);
+
+/*
+ * Return 0 when OK, -1 when there is error.
+ */
+int app_l2_learning(const struct ether_addr* srcaddr, uint8_t port);
+
+/*
+ * Return port id to forward (broadcast if negative)
+ */
+int app_l2_lookup(const struct ether_addr* addr);
+
 
 #define APP_FLUSH 0
 #ifndef APP_FLUSH
