@@ -38,4 +38,12 @@
 # vim swap file
 *.swp
 
+# dpdk generated files
 build/
+*.map
+*.cmd
+_install
+_postbuild
+_postinstall
+_preinstall
+main
