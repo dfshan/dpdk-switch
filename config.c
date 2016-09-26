@@ -41,6 +41,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <getopt.h>
+#include <confuse.h>
 
 #include <rte_common.h>
 #include <rte_byteorder.h>
@@ -137,6 +138,38 @@ app_parse_port_mask(const char *arg)
     return 0;
 }
 
+static int
+app_read_config_file(const char *fname) {
+    long buffer_size = -1, mean_pkt_size = -1, dt_shift_alpha = -1;
+    char *bm_policy = NULL;
+    char policy[] = "Equal Division";
+    cfg_opt_t opts[] = {
+        CFG_SIMPLE_INT("buffer_size", &buffer_size),
+        CFG_SIMPLE_INT("mean_packet_size", &mean_pkt_size),
+        CFG_SIMPLE_STR("buffer_management_policy", &bm_policy),
+        CFG_SIMPLE_INT("dt_shift_alpha", &dt_shift_alpha),
+        CFG_END()
+    };
+    cfg_t *cfg = cfg_init(opts, 0);
+    cfg_parse(cfg, fname);
+    if (bm_policy == NULL || !strcmp(bm_policy, "Equal Division")) {
+        app.get_threshold = qlen_threshold_equal_division;
+    } else if (!strcmp(bm_policy, "Dynamic Threshold")
+            || !strcmp(bm_policy, "DT")) {
+        app.get_threshold = qlen_threshold_dt;
+    } else {
+        RTE_LOG(ERR, SWITCH, "%s: Unsupported buffer management policy: %s\n", __func__, bm_policy);
+    }
+    app.buff_size_pkts = (buffer_size > 0 ? buffer_size : app.buff_size_pkts);
+    app.mean_pkt_size = (mean_pkt_size > 0 ? mean_pkt_size : app.mean_pkt_size);
+    app.dt_shift_alpha = (dt_shift_alpha >= 0 ? dt_shift_alpha : app.dt_shift_alpha);
+    RTE_LOG(INFO, SWITCH,
+        "%s: bm_policy: %s, buffer_size: %u, mean_pkt_size: %u, dt_shift_alpha: %u\n",
+        __func__, bm_policy, app.buff_size_pkts, app.mean_pkt_size, app.dt_shift_alpha
+    );
+    return 0;
+}
+
 int
 app_parse_args(int argc, char **argv)
 {
@@ -149,7 +182,6 @@ app_parse_args(int argc, char **argv)
         {"none", 0, 0, 0},
     };
     uint32_t lcores[3], n_lcores, lcore_id;
-
     /* EAL args */
     n_lcores = 0;
     for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
@@ -204,5 +236,6 @@ app_parse_args(int argc, char **argv)
 
     ret = optind - 1;
     optind = 0; /* reset getopt lib */
+    app_read_config_file("switch.conf");
     return ret;
 }

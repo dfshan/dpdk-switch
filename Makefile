@@ -41,6 +41,8 @@ APP = main
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
 
+CFLAGS += -lconfuse
+
 #
 # all source are stored in SRCS-y
 #
