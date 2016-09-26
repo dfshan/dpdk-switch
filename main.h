@@ -52,6 +52,8 @@
 #define FORWARD_ENTRY 10 // # of forwarding table entries
 #define MAX_NAME_LEN 100
 #define VALID_TIME INT_MAX // valid time (in ms) for a forwarding item
+/*whether queue in bytes*/
+#define QUE_IN_BYTES 1
 
 typedef uint32_t (* get_threshold_callback_fn)(uint32_t port_id);
 struct app_mbuf_array {
@@ -81,8 +83,6 @@ struct app_params {
     uint32_t port_rx_ring_size;
     uint32_t port_tx_ring_size;
 
-    /*whether queue in bytes*/
-    uint32_t qib;
     /* buffer size */
     uint32_t buff_size_pkts;
     /* buffer occupancy*/

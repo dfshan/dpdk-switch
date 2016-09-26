@@ -83,7 +83,6 @@ struct app_params app = {
     .port_rx_ring_size = 128,
     .port_tx_ring_size = 32,
 
-    .qib = 1,
     /* switch buffer */
     .buff_size_pkts = 256,
     .mean_pkt_size = 1500,

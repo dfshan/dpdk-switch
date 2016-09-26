@@ -107,7 +107,11 @@ uint32_t
 qlen_threshold_equal_division(uint32_t port_id) {
     port_id = port_id << 1; /* prevent warning */
     uint32_t result = app.buff_size_pkts / app.n_ports;
-    return (app.qib ? result * app.mean_pkt_size : result);
+#if QUE_IN_BYTES == 1
+    return result * app.mean_pkt_size;
+#else
+    return result;
+#endif
 }
 
 uint32_t
@@ -116,25 +120,25 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     /*Check whether buffer overflows after enqueue*/
     rte_spinlock_lock(&app.lock_buff);
     uint32_t threshold = app.get_threshold(dst_port);
-    if (app.qib) {
-        uint32_t qlen_enque = app.qlen_bytes[dst_port] + pkt->pkt_len;
-        if (qlen_enque > threshold) {
-            ret = -1;
-        }
-        else if (app.buff_occu_bytes + pkt->pkt_len > app.buff_size_pkts * app.mean_pkt_size) {
-            ret = -2;
-        } else {
-            ret = 0;
-        }
-    } else {
-        if (app.qlen_pkts[dst_port] + 1 > threshold) {
-            ret = -1;
-        } else if (app.buff_occu_pkts > app.buff_size_pkts) {
-            ret = -2;
-        } else {
-            ret = 0;
-        }
+#if QUE_IN_BYTES == 1
+    uint32_t qlen_enque = app.qlen_bytes[dst_port] + pkt->pkt_len;
+    if (qlen_enque > threshold) {
+        ret = -1;
     }
+    else if (app.buff_occu_bytes + pkt->pkt_len > app.buff_size_pkts * app.mean_pkt_size) {
+        ret = -2;
+    } else {
+        ret = 0;
+    }
+#else
+    if (app.qlen_pkts[dst_port] + 1 > threshold) {
+        ret = -1;
+    } else if (app.buff_occu_pkts > app.buff_size_pkts) {
+        ret = -2;
+    } else {
+        ret = 0;
+    }
+#endif
     if (ret == 0) {
         rte_ring_sp_enqueue(
             app.rings_tx[dst_port],
