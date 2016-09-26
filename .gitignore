@@ -47,3 +47,4 @@ _postbuild
 _postinstall
 _preinstall
 main
+*.log
