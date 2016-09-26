@@ -35,6 +35,10 @@
 #define _MAIN_H_
 
 #include <stdint.h>
+#include <sys/time.h>
+
+#include <rte_rwlock.h>
+#include <rte_spinlock.h>
 
 #ifndef APP_MBUF_ARRAY_SIZE
 #define APP_MBUF_ARRAY_SIZE 256
@@ -50,8 +54,8 @@
 #define VALID_TIME INT_MAX // valid time (in ms) for a forwarding item
 
 struct app_mbuf_array {
-	struct rte_mbuf *array[APP_MBUF_ARRAY_SIZE];
-	uint16_t n_mbufs;
+    struct rte_mbuf *array[APP_MBUF_ARRAY_SIZE];
+    uint16_t n_mbufs;
 };
 
 #ifndef APP_MAX_PORTS
@@ -59,48 +63,68 @@ struct app_mbuf_array {
 #endif
 
 struct app_fwd_table_item {
-	uint8_t port_id;
-	struct timeval timestamp; // the time when the item is added
+    uint8_t port_id;
+    /* the time when the item is added */
+    struct timeval timestamp;
 };
 
 struct app_params {
-	/* CPU cores */
-	uint32_t core_rx;
-	uint32_t core_worker;
-	uint32_t core_tx;
+    /* CPU cores */
+    uint32_t core_rx;
+    uint32_t core_worker;
+    uint32_t core_tx;
 
-	/* Ports*/
-	uint32_t ports[APP_MAX_PORTS];
-	uint32_t n_ports;
-	uint32_t port_rx_ring_size;
-	uint32_t port_tx_ring_size;
+    /* Ports*/
+    uint32_t ports[APP_MAX_PORTS];
+    uint32_t n_ports;
+    uint32_t port_rx_ring_size;
+    uint32_t port_tx_ring_size;
 
-	/* Rings */
-	struct rte_ring *rings_rx[APP_MAX_PORTS];
-	struct rte_ring *rings_tx[APP_MAX_PORTS];
-	uint32_t ring_rx_size;
-	uint32_t ring_tx_size;
+    /*whether queue in bytes*/
+    uint32_t qib;
+    /* buffer size */
+    uint32_t buff_size_pkts;
+    /* buffer occupancy*/
+    uint32_t buff_occu_pkts;
+    uint32_t buff_occu_bytes;
+    /*rte_rwlock_t lock_bocu;*/
+    rte_spinlock_t lock_buff;
 
-	/* Internal buffers */
-	struct app_mbuf_array mbuf_rx;
-	struct app_mbuf_array mbuf_tx[APP_MAX_PORTS];
+    /*
+     * mean packet size in bytes
+     * used for get the buffer size in bytes
+     */
+    uint32_t mean_pkt_size;
+    /* queue length*/
+    /*rte_rwlock_t lock_qlen[APP_MAX_PORTS];*/
+    uint32_t qlen_bytes[APP_MAX_PORTS];
+    uint32_t qlen_pkts[APP_MAX_PORTS];
+    /* Rings */
+    struct rte_ring *rings_rx[APP_MAX_PORTS];
+    struct rte_ring *rings_tx[APP_MAX_PORTS];
+    uint32_t ring_rx_size;
+    uint32_t ring_tx_size;
 
-	/* Buffer pool */
-	struct rte_mempool *pool;
-	uint32_t pool_buffer_size;
-	uint32_t pool_size;
-	uint32_t pool_cache_size;
+    /* Internal buffers */
+    struct app_mbuf_array mbuf_rx;
+    struct app_mbuf_array mbuf_tx[APP_MAX_PORTS];
 
-	/* Burst sizes */
-	uint32_t burst_size_rx_read;
-	uint32_t burst_size_rx_write;
-	uint32_t burst_size_worker_read;
-	uint32_t burst_size_worker_write;
-	uint32_t burst_size_tx_read;
-	uint32_t burst_size_tx_write;
+    /* Buffer pool */
+    struct rte_mempool *pool;
+    uint32_t pool_buffer_size;
+    uint32_t pool_size;
+    uint32_t pool_cache_size;
 
-	/* App behavior */
-	// uint32_t pipeline_type;
+    /* Burst sizes */
+    uint32_t burst_size_rx_read;
+    uint32_t burst_size_rx_write;
+    uint32_t burst_size_worker_read;
+    uint32_t burst_size_worker_write;
+    uint32_t burst_size_tx_read;
+    uint32_t burst_size_tx_write;
+
+    /* App behavior */
+    // uint32_t pipeline_type;
     
     /* things about forwarding table */
     struct app_fwd_table_item fwd_table[FORWARD_ENTRY];
@@ -134,6 +158,20 @@ int app_l2_learning(const struct ether_addr* srcaddr, uint8_t port);
  * Return port id to forward (broadcast if negative)
  */
 int app_l2_lookup(const struct ether_addr* addr);
+
+/*
+ * Wrapper for enqueue
+ * Returns:
+ *  0: succeed, < 0: packet dropped
+ *  -1: queue length > threshold, -2: buffer overflow, -3: other unknown reason
+*/
+uint32_t packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt);
+
+/*
+ * Get port qlen threshold for a port
+ * if queue length for a port is larger than threshold, then packets are dropped.
+*/
+uint32_t qlen_threshold(uint32_t port_id);
 
 
 #define APP_FLUSH 0

@@ -76,124 +76,133 @@
 
 // struct app_params app;
 
-static const char usage[] = "./<app name> [EAL options] -- -p PORTMASK\n";
+static const char usage[] = "./<app name> [EAL options] -- -p PORTMASK -b BUFFER SIZE IN PKTS -m MEAN PKT SIZE\n";
 
 void
 app_print_usage(void)
 {
-	printf("USAGE: %s", usage);
+    printf("USAGE: %s", usage);
 }
 
 static int
 app_parse_port_mask(const char *arg)
 {
-	char *end = NULL;
-	uint64_t port_mask;
-	uint32_t i;
+    char *end = NULL;
+    uint64_t port_mask;
+    uint32_t i;
 
-	if (arg[0] == '\0')
-		return -1;
+    if (arg[0] == '\0')
+        return -1;
 
-	port_mask = strtoul(arg, &end, 16);
-	if ((end == NULL) || (*end != '\0'))
-		return -2;
+    port_mask = strtoul(arg, &end, 16);
+    if ((end == NULL) || (*end != '\0'))
+        return -2;
 
-	if (port_mask == 0) {
+    if (port_mask == 0) {
         RTE_LOG(
             ERR, SWITCH,
             "%s: no port specified\n",
             __func__
         );
-		return -3;
+        return -3;
     }
 
-	app.n_ports = 0;
-	for (i = 0; i < 64; i++) {
-		if ((port_mask & (1LLU << i)) == 0)
-			continue;
+    app.n_ports = 0;
+    for (i = 0; i < 64; i++) {
+        if ((port_mask & (1LLU << i)) == 0)
+            continue;
 
-		if (app.n_ports >= APP_MAX_PORTS) {
+        if (app.n_ports >= APP_MAX_PORTS) {
             RTE_LOG(
                 ERR, SWITCH,
                 "%s: # of ports (%u) is larger than maximum supported port number (%u)\n",
                 __func__, app.n_ports, APP_MAX_PORTS
             );
-			return -4;
+            return -4;
         }
 
-		app.ports[app.n_ports] = i;
-		app.n_ports++;
-	}
+        app.ports[app.n_ports] = i;
+        app.n_ports++;
+    }
 
-	if (!rte_is_power_of_2(app.n_ports)) {
+    if (!rte_is_power_of_2(app.n_ports)) {
         RTE_LOG(
             WARNING, SWITCH,
             "%s: # of ports (%u) is not power of 2\n",
             __func__, app.n_ports
         );
-		return -5;
+        return -5;
     }
 
-	return 0;
+    return 0;
 }
 
 int
 app_parse_args(int argc, char **argv)
 {
-	int opt, ret;
-	char **argvopt;
-	int option_index;
-	char *prgname = argv[0];
-	static struct option lgopts[] = {
-		{"none", 0, 0, 0},
-	};
-	uint32_t lcores[3], n_lcores, lcore_id;
+    int opt, ret;
+    char **argvopt;
+    int option_index;
+    char *prgname = argv[0];
+    char *end = NULL;
+    static struct option lgopts[] = {
+        {"none", 0, 0, 0},
+    };
+    uint32_t lcores[3], n_lcores, lcore_id;
 
-	/* EAL args */
-	n_lcores = 0;
-	for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-		if (rte_lcore_is_enabled(lcore_id) == 0)
-			continue;
+    /* EAL args */
+    n_lcores = 0;
+    for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+        if (rte_lcore_is_enabled(lcore_id) == 0)
+            continue;
 
-		if (n_lcores >= 3) {
-			RTE_LOG(ERR, SWITCH, "Number of cores must be 3\n");
-			return -1;
-		}
+        if (n_lcores >= 3) {
+            RTE_LOG(ERR, SWITCH, "Number of cores must be 3\n");
+            return -1;
+        }
 
-		lcores[n_lcores] = lcore_id;
-		n_lcores++;
-	}
+        lcores[n_lcores] = lcore_id;
+        n_lcores++;
+    }
 
-	if (n_lcores != 3) {
-		RTE_LOG(ERR, SWITCH, "# of cores must be 3\n");
-		return -1;
-	}
+    if (n_lcores != 3) {
+        RTE_LOG(ERR, SWITCH, "# of cores must be 3\n");
+        return -1;
+    }
 
-	app.core_rx = lcores[0];
-	app.core_worker = lcores[1];
-	app.core_tx = lcores[2];
+    app.core_rx = lcores[0];
+    app.core_worker = lcores[1];
+    app.core_tx = lcores[2];
 
-	/* Non-EAL args */
-	argvopt = argv;
+    /* Non-EAL args */
+    argvopt = argv;
 
-	while ((opt = getopt_long(argc, argvopt, "p:",
-			lgopts, &option_index)) != EOF) {
-		switch (opt) {
-		case 'p':
-			if (app_parse_port_mask(optarg) < 0) {
-				return -1;
-			}
-			break;
+    while ((opt = getopt_long(argc, argvopt, "p:b:m:",
+            lgopts, &option_index)) != EOF) {
+        switch (opt) {
+        case 'p':
+            if (app_parse_port_mask(optarg) < 0) {
+                return -1;
+            }
+            break;
 
-		default:
-			return -1;
-		}
-	}
+        case 'b':
+            app.buff_size_pkts = strtoul(optarg, &end, 10);
+            break;
 
-	if (optind >= 0)
-		argv[optind - 1] = prgname;
+        case 'm':
+            app.mean_pkt_size = strtoul(optarg, &end, 10);
+            break;
 
-	ret = optind - 1;
-	optind = 0; /* reset getopt lib */
-	return ret;
+        default:
+            return -1;
+        }
+    }
+
+    if (optind >= 0)
+        argv[optind - 1] = prgname;
+
+    ret = optind - 1;
+    optind = 0; /* reset getopt lib */
+    return ret;
 }
