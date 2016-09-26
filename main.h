@@ -72,6 +72,7 @@ struct app_fwd_table_item {
 };
 
 struct app_params {
+    uint64_t start_cycle;
     /* CPU cores */
     uint32_t core_rx;
     uint32_t core_worker;
@@ -88,6 +89,9 @@ struct app_params {
     /* buffer occupancy*/
     uint32_t buff_occu_pkts;
     uint32_t buff_occu_bytes;
+    /* whether log queue length and the file to put log in */
+    uint32_t log_qlen;
+    FILE* qlen_file;
     /*rte_rwlock_t lock_bocu;*/
     rte_spinlock_t lock_buff;
     get_threshold_callback_fn get_threshold;

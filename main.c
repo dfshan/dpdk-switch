@@ -79,6 +79,7 @@ main(int argc, char **argv)
 {
     uint32_t lcore;
     int ret;
+    char qlen_fname[100] = "/dev/shm/dpdk-qlen.log";
 
     /* Init EAL */
     ret = rte_eal_init(argc, argv);
@@ -96,6 +97,15 @@ main(int argc, char **argv)
 
     /* Init */
     app_init();
+
+    app.log_qlen = 1;
+    app.qlen_file = fopen(qlen_fname, "w");
+    if (app.qlen_file == NULL) {
+        perror("Open file error:");
+    }
+    fprintf(app.qlen_file, "# <TSC cycles> <port id> <qlen in pkts> <qlen in byts> <buff occupancy in pkts> <buff occupancy in bytes>\n");
+
+    app.start_cycle = rte_get_tsc_cycles();
 
     /* Launch per-lcore init on every lcore */
     rte_eal_mp_remote_launch(app_lcore_main_loop, NULL, CALL_MASTER);

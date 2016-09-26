@@ -89,6 +89,9 @@ app_main_loop_rx(void) {
             0,
             app.mbuf_rx.array,
             app.burst_size_rx_read);
+        if (n_mbufs >= app.burst_size_rx_read) {
+            RTE_LOG(DEBUG, SWITCH, "%s: receive %u packets from port %u\n", __func__, n_mbufs, app.ports[i]);
+        }
 
         if (n_mbufs == 0)
             continue;
@@ -140,19 +143,36 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     }
 #endif
     if (ret == 0) {
-        rte_ring_sp_enqueue(
+        int enque_ret = rte_ring_sp_enqueue(
             app.rings_tx[dst_port],
             pkt
         );
+        if (enque_ret != 0) {
+            RTE_LOG(ERR, SWITCH, "%s: packet cannot enqueue in port %u", __func__, app.ports[dst_port]);
+        }
         app.qlen_bytes[dst_port] += pkt->pkt_len;
         app.qlen_pkts[dst_port] ++;
         app.buff_occu_bytes += pkt->pkt_len;
         app.buff_occu_pkts ++;
+        if (app.log_qlen && pkt->pkt_len > app.mean_pkt_size) {
+            fprintf(
+                app.qlen_file,
+                "%-10lu %-8u %-8u %-8u %-8u %-8u\n",
+                rte_get_tsc_cycles() - app.start_cycle,
+                dst_port,
+                app.qlen_pkts[dst_port],
+                app.qlen_bytes[dst_port],
+                app.buff_occu_pkts,
+                app.buff_occu_bytes
+            );
+        }
+    } else {
+        rte_pktmbuf_free(pkt);
     }
     rte_spinlock_unlock(&app.lock_buff);
     switch (ret) {
     case 0:
-        RTE_LOG(DEBUG, SWITCH, "%s: packet enqueue to port %u\n", __func__, dst_port);
+        RTE_LOG(DEBUG, SWITCH, "%s: packet enqueue to port %u\n", __func__, app.ports[dst_port]);
         break;
     case -1:
         RTE_LOG(DEBUG, SWITCH, "%s: Packet dropped due to queue length > threshold\n", __func__);
@@ -216,7 +236,7 @@ app_main_loop_worker(void) {
                 }
             }
         } else {
-            RTE_LOG(DEBUG, SWITCH, "%s: forward packet to %d\n", __func__, dst_port);
+            RTE_LOG(DEBUG, SWITCH, "%s: forward packet to %d\n", __func__, app.ports[dst_port]);
             packet_enqueue(dst_port, worker_mbuf->array[0]);
             /*rte_ring_sp_enqueue(
                 app.rings_tx[dst_port],
@@ -268,29 +288,22 @@ app_main_loop_tx(void) {
 
         n_mbufs += app.burst_size_tx_read;
 
-        RTE_LOG(DEBUG, SWITCH, "%s: port %u receive %u packets\n", __func__, i, n_mbufs);
+        RTE_LOG(DEBUG, SWITCH, "%s: port %u receive %u packets\n", __func__, app.ports[i], n_mbufs);
 
         if (n_mbufs < app.burst_size_tx_write) {
             app.mbuf_tx[i].n_mbufs = n_mbufs;
             continue;
         }
 
-        n_pkts = rte_eth_tx_burst(
-            app.ports[i],
-            0,
-            app.mbuf_tx[i].array,
-            n_mbufs);
-
-        if (n_pkts < n_mbufs) {
-            uint16_t k;
-
-            for (k = n_pkts; k < n_mbufs; k++) {
-                struct rte_mbuf *pkt_to_free;
-
-                pkt_to_free = app.mbuf_tx[i].array[k];
-                rte_pktmbuf_free(pkt_to_free);
-            }
-        }
+        uint16_t k = 0;
+        do {
+            n_pkts = rte_eth_tx_burst(
+                app.ports[i],
+                0,
+                &app.mbuf_tx[i].array[k],
+                n_mbufs);
+            k += n_pkts;
+        } while (n_pkts < n_mbufs);
 
         app.mbuf_tx[i].n_mbufs = 0;
     }

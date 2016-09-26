@@ -88,6 +88,8 @@ struct app_params app = {
     .mean_pkt_size = 1500,
     .buff_occu_pkts = 0,
     .buff_occu_bytes = 0,
+    .log_qlen = 0,
+    .qlen_file = NULL,
     .get_threshold = qlen_threshold_equal_division,
 
     /* Rings */
@@ -196,6 +198,7 @@ app_init_rings(void)
 {
     uint32_t i;
 
+    app.ring_rx_size = (topower2(app.buff_size_pkts) << 2);
     for (i = 0; i < app.n_ports; i++) {
         char name[32];
 

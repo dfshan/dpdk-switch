@@ -43,7 +43,7 @@ app_l2_learning(const struct ether_addr* srcaddr, uint8_t port) {
             srcaddr->addr_bytes[0], srcaddr->addr_bytes[1],
             srcaddr->addr_bytes[2], srcaddr->addr_bytes[3],
             srcaddr->addr_bytes[4], srcaddr->addr_bytes[5],
-            port
+            app.ports[port]
         );
     } else if (index < 0 || index >= FORWARD_ENTRY) {
         RTE_LOG(
@@ -67,7 +67,7 @@ app_l2_learning(const struct ether_addr* srcaddr, uint8_t port) {
                 srcaddr->addr_bytes[0], srcaddr->addr_bytes[1],
                 srcaddr->addr_bytes[2], srcaddr->addr_bytes[3],
                 srcaddr->addr_bytes[4], srcaddr->addr_bytes[5],
-                port, old_port
+                app.ports[port], app.ports[old_port]
             );
         }
     }
