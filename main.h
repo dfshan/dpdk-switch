@@ -37,9 +37,6 @@
 #include <stdint.h>
 #include <sys/time.h>
 
-#include <rte_rwlock.h>
-#include <rte_spinlock.h>
-
 #ifndef APP_MBUF_ARRAY_SIZE
 #define APP_MBUF_ARRAY_SIZE 256
 #endif
@@ -95,6 +92,9 @@ struct app_params {
     /*rte_rwlock_t lock_bocu;*/
     rte_spinlock_t lock_buff;
     get_threshold_callback_fn get_threshold;
+
+    /* parameter alpha of DT = 1 << dt_shift_alpha*/
+    uint32_t dt_shift_alpha;
 
     /*
      * mean packet size in bytes
@@ -178,6 +178,8 @@ uint32_t packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt);
  * if queue length for a port is larger than threshold, then packets are dropped.
 */
 uint32_t qlen_threshold_equal_division(uint32_t port_id);
+/* dynamic threshold */
+uint32_t qlen_threshold_dt(uint32_t port_id);
 
 
 #define APP_FLUSH 0

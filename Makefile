@@ -49,6 +49,7 @@ SRCS-y += config.c
 SRCS-y += init.c
 SRCS-y += runtime.c
 SRCS-y += forwarding.c
+SRCS-y += qlen-threshold.c
 
 # this application needs libraries first
 DEPDIRS-y += lib drivers

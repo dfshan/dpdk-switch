@@ -91,6 +91,7 @@ struct app_params app = {
     .log_qlen = 0,
     .qlen_file = NULL,
     .get_threshold = qlen_threshold_equal_division,
+    .dt_shift_alpha = 0,
 
     /* Rings */
     .ring_rx_size = 128,

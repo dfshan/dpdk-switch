@@ -105,18 +105,6 @@ app_main_loop_rx(void) {
     }
 }
 
-
-uint32_t
-qlen_threshold_equal_division(uint32_t port_id) {
-    port_id = port_id << 1; /* prevent warning */
-    uint32_t result = app.buff_size_pkts / app.n_ports;
-#if QUE_IN_BYTES == 1
-    return result * app.mean_pkt_size;
-#else
-    return result;
-#endif
-}
-
 uint32_t
 packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     int ret = 0;
