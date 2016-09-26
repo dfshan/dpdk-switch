@@ -53,6 +53,7 @@
 #define MAX_NAME_LEN 100
 #define VALID_TIME INT_MAX // valid time (in ms) for a forwarding item
 
+typedef uint32_t (* get_threshold_callback_fn)(uint32_t port_id);
 struct app_mbuf_array {
     struct rte_mbuf *array[APP_MBUF_ARRAY_SIZE];
     uint16_t n_mbufs;
@@ -89,6 +90,7 @@ struct app_params {
     uint32_t buff_occu_bytes;
     /*rte_rwlock_t lock_bocu;*/
     rte_spinlock_t lock_buff;
+    get_threshold_callback_fn get_threshold;
 
     /*
      * mean packet size in bytes
@@ -171,7 +173,7 @@ uint32_t packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt);
  * Get port qlen threshold for a port
  * if queue length for a port is larger than threshold, then packets are dropped.
 */
-uint32_t qlen_threshold(uint32_t port_id);
+uint32_t qlen_threshold_equal_division(uint32_t port_id);
 
 
 #define APP_FLUSH 0

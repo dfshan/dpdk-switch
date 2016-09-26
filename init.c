@@ -89,6 +89,7 @@ struct app_params app = {
     .mean_pkt_size = 1500,
     .buff_occu_pkts = 0,
     .buff_occu_bytes = 0,
+    .get_threshold = qlen_threshold_equal_division,
 
     /* Rings */
     .ring_rx_size = 128,

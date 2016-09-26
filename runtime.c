@@ -104,7 +104,7 @@ app_main_loop_rx(void) {
 
 
 uint32_t
-qlen_threshold(uint32_t port_id) {
+qlen_threshold_equal_division(uint32_t port_id) {
     port_id = port_id << 1; /* prevent warning */
     uint32_t result = app.buff_size_pkts / app.n_ports;
     return (app.qib ? result * app.mean_pkt_size : result);
@@ -115,7 +115,7 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     int ret = 0;
     /*Check whether buffer overflows after enqueue*/
     rte_spinlock_lock(&app.lock_buff);
-    uint32_t threshold = qlen_threshold(dst_port);
+    uint32_t threshold = app.get_threshold(dst_port);
     if (app.qib) {
         uint32_t qlen_enque = app.qlen_bytes[dst_port] + pkt->pkt_len;
         if (qlen_enque > threshold) {
@@ -148,13 +148,13 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     rte_spinlock_unlock(&app.lock_buff);
     switch (ret) {
     case 0:
-        RTE_LOG(DEBUG, SWITCH, "%s: packet enqueue\n", __func__);
+        RTE_LOG(DEBUG, SWITCH, "%s: packet enqueue to port %u\n", __func__, dst_port);
         break;
     case -1:
-        RTE_LOG(DEBUG, SWITCH, "%s: queue length > threshold\n", __func__);
+        RTE_LOG(DEBUG, SWITCH, "%s: Packet dropped due to queue length > threshold\n", __func__);
         break;
     case -2:
-        RTE_LOG(DEBUG, SWITCH, "%s: buffer overflow\n", __func__);
+        RTE_LOG(DEBUG, SWITCH, "%s: Packet dropped due to buffer overflow\n", __func__);
     }
     return ret;
 }
@@ -255,10 +255,10 @@ app_main_loop_tx(void) {
 
         for (j = 0; j < app.burst_size_tx_read; j++) {
             pkt = app.mbuf_tx[i].array[n_mbufs+j];
-            app.qlen_bytes[i] += pkt->pkt_len;
-            app.qlen_pkts[i] ++;
-            app.buff_occu_bytes += pkt->pkt_len;
-            app.buff_occu_pkts ++;
+            app.qlen_bytes[i] -= pkt->pkt_len;
+            app.qlen_pkts[i] --;
+            app.buff_occu_bytes -= pkt->pkt_len;
+            app.buff_occu_pkts --;
         }
         rte_spinlock_unlock(&app.lock_buff);
 
