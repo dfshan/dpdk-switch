@@ -142,7 +142,7 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
         app.qlen_pkts[dst_port] ++;
         app.buff_occu_bytes += pkt->pkt_len;
         app.buff_occu_pkts ++;
-        if (app.log_qlen && pkt->pkt_len > app.mean_pkt_size) {
+        if (app.log_qlen && pkt->pkt_len >= app.mean_pkt_size) {
             fprintf(
                 app.qlen_file,
                 "%-10lu %-8u %-8u %-8u %-8u %-8u\n",
