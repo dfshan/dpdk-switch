@@ -147,7 +147,7 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
                 app.qlen_file,
                 "%-10lu %-8u %-8u %-8u %-8u %-8u\n",
                 rte_get_tsc_cycles() - app.start_cycle,
-                dst_port,
+                app.ports[dst_port],
                 app.qlen_pkts[dst_port],
                 app.qlen_bytes[dst_port],
                 app.buff_occu_pkts,
