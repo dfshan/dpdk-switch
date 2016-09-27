@@ -182,6 +182,19 @@ app_main_loop_worker(void) {
     RTE_LOG(INFO, SWITCH, "Core %u is doing work (no pipeline)\n",
         rte_lcore_id());
 
+    if (app.log_qlen) {
+        fprintf(
+            app.qlen_file,
+            "%-10s %-8s %-8s %-8s %-8s %-8s\n",
+            "<RSC cycle>",
+            "<Port id>",
+            "<Qlen in pkts>",
+            "<Qlen in B>",
+            "<Buffer occupancy in packets>",
+            "<Buffer occupancy in B>"
+        );
+        fflush(app.qlen_file);
+    }
     worker_mbuf = rte_malloc_socket(NULL, sizeof(struct app_mbuf_array),
             RTE_CACHE_LINE_SIZE, rte_socket_id());
     if (worker_mbuf == NULL)

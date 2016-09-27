@@ -35,6 +35,7 @@
 #define _MAIN_H_
 
 #include <stdint.h>
+#include <confuse.h>
 #include <sys/time.h>
 
 #ifndef APP_MBUF_ARRAY_SIZE
@@ -67,6 +68,17 @@ struct app_fwd_table_item {
     /* the time when the item is added */
     struct timeval timestamp;
 };
+
+struct app_configs {
+    long buffer_size;
+    long mean_pkt_size;
+    long dt_shift_alpha;
+    char *bm_policy;
+    cfg_bool_t log_qlen;
+    char *qlen_fname;
+};
+
+extern struct app_configs app_cfg;
 
 struct app_params {
     uint64_t start_cycle;

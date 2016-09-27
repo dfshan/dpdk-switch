@@ -138,35 +138,64 @@ app_parse_port_mask(const char *arg)
     return 0;
 }
 
+struct app_configs app_cfg = {
+    .buffer_size = -1,
+    .mean_pkt_size = -1,
+    .dt_shift_alpha = -1,
+    .bm_policy = NULL,
+    .qlen_fname = NULL,
+    .log_qlen = cfg_false
+};
+
 static int
 app_read_config_file(const char *fname) {
-    long buffer_size = -1, mean_pkt_size = -1, dt_shift_alpha = -1;
-    char *bm_policy = NULL;
-    char policy[] = "Equal Division";
     cfg_opt_t opts[] = {
-        CFG_SIMPLE_INT("buffer_size", &buffer_size),
-        CFG_SIMPLE_INT("mean_packet_size", &mean_pkt_size),
-        CFG_SIMPLE_STR("buffer_management_policy", &bm_policy),
-        CFG_SIMPLE_INT("dt_shift_alpha", &dt_shift_alpha),
+        CFG_SIMPLE_INT("buffer_size", &app_cfg.buffer_size),
+        CFG_SIMPLE_INT("mean_packet_size", &app_cfg.mean_pkt_size),
+        CFG_SIMPLE_STR("buffer_management_policy", &app_cfg.bm_policy),
+        CFG_SIMPLE_INT("dt_shift_alpha", &app_cfg.dt_shift_alpha),
+        CFG_SIMPLE_BOOL("log_queue_length", &app_cfg.log_qlen),
+        CFG_SIMPLE_STR("queue_length_file", &app_cfg.qlen_fname),
         CFG_END()
     };
     cfg_t *cfg = cfg_init(opts, 0);
     cfg_parse(cfg, fname);
-    if (bm_policy == NULL || !strcmp(bm_policy, "Equal Division")) {
+    if (!strcmp(app_cfg.bm_policy, "Equal Division")) {
         app.get_threshold = qlen_threshold_equal_division;
-    } else if (!strcmp(bm_policy, "Dynamic Threshold")
-            || !strcmp(bm_policy, "DT")) {
+    } else if (!strcmp(app_cfg.bm_policy, "Dynamic Threshold")
+            || !strcmp(app_cfg.bm_policy, "DT")) {
         app.get_threshold = qlen_threshold_dt;
     } else {
-        RTE_LOG(ERR, SWITCH, "%s: Unsupported buffer management policy: %s\n", __func__, bm_policy);
+        RTE_LOG(ERR, SWITCH, "%s: Unsupported buffer management policy: %s\n", __func__, app_cfg.bm_policy);
     }
-    app.buff_size_pkts = (buffer_size > 0 ? buffer_size : app.buff_size_pkts);
-    app.mean_pkt_size = (mean_pkt_size > 0 ? mean_pkt_size : app.mean_pkt_size);
-    app.dt_shift_alpha = (dt_shift_alpha >= 0 ? dt_shift_alpha : app.dt_shift_alpha);
-    RTE_LOG(INFO, SWITCH,
-        "%s: bm_policy: %s, buffer_size: %u, mean_pkt_size: %u, dt_shift_alpha: %u\n",
-        __func__, bm_policy, app.buff_size_pkts, app.mean_pkt_size, app.dt_shift_alpha
+    app.buff_size_pkts = (app_cfg.buffer_size > 0 ? app_cfg.buffer_size : app.buff_size_pkts);
+    app.mean_pkt_size = (app_cfg.mean_pkt_size > 0 ? app_cfg.mean_pkt_size : app.mean_pkt_size);
+    app.dt_shift_alpha = (app_cfg.dt_shift_alpha >= 0 ? app_cfg.dt_shift_alpha : app.dt_shift_alpha);
+    if (app_cfg.log_qlen) {
+        if (app_cfg.qlen_fname == NULL) {
+            RTE_LOG(ERR, SWITCH, "%s: Enable queue length log, but log file name is not specified.\n", __func__);
+        } else {
+            app.qlen_file = fopen(app_cfg.qlen_fname, "w");
+            if (app.qlen_file == NULL) {
+                perror("Open file error:");
+                RTE_LOG(ERR, SWITCH, "%s: Cannot open queue length log file %s\n", __func__, app_cfg.qlen_fname);
+            } else {
+                app.log_qlen = 1;
+            }
+        }
+    }
+    RTE_LOG(
+        INFO, SWITCH,
+        "%s: bm_policy: %s, buffer_size: %upkts=%uKB, mean_pkt_size: %uB, dt_shift_alpha: %u\n",
+        __func__, app_cfg.bm_policy, app.buff_size_pkts, app.buff_size_pkts*app.mean_pkt_size/1024, app.mean_pkt_size, app.dt_shift_alpha
     );
+    if (app.log_qlen) {
+        RTE_LOG(
+            INFO, SWITCH,
+            "%s: Queue length logging is enabled. Logging is dumped into file %s\n",
+            __func__, app_cfg.qlen_fname
+        );
+    }
     return 0;
 }
 
