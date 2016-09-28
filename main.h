@@ -76,10 +76,12 @@ struct app_configs {
     char *bm_policy;
     cfg_bool_t log_qlen;
     char *qlen_fname;
+    cfg_t *cfg;
 };
 
 extern struct app_configs app_cfg;
 
+extern volatile bool force_quit;
 struct app_params {
     uint64_t start_cycle;
     /* CPU cores */

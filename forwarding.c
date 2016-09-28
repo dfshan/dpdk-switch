@@ -4,6 +4,7 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/time.h>
+#include <stdbool.h>
 
 #include <rte_common.h>
 #include <rte_eal.h>
@@ -58,7 +59,7 @@ app_l2_learning(const struct ether_addr* srcaddr, uint8_t port) {
         gettimeofday(&app.fwd_table[index].timestamp, NULL);
         if (old_port != port) {
             RTE_LOG(
-                DEBUG, HASH,
+                INFO, HASH,
                 "%s: Update item in forwarding table:"
                 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8
                 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8

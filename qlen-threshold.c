@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <getopt.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include <rte_common.h>
 #include <rte_byteorder.h>

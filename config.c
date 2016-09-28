@@ -42,6 +42,7 @@
 #include <errno.h>
 #include <getopt.h>
 #include <confuse.h>
+#include <stdbool.h>
 
 #include <rte_common.h>
 #include <rte_byteorder.h>
@@ -144,7 +145,8 @@ struct app_configs app_cfg = {
     .dt_shift_alpha = -1,
     .bm_policy = NULL,
     .qlen_fname = NULL,
-    .log_qlen = cfg_false
+    .log_qlen = cfg_false,
+    .cfg = NULL
 };
 
 static int
@@ -158,8 +160,8 @@ app_read_config_file(const char *fname) {
         CFG_SIMPLE_STR("queue_length_file", &app_cfg.qlen_fname),
         CFG_END()
     };
-    cfg_t *cfg = cfg_init(opts, 0);
-    cfg_parse(cfg, fname);
+    app_cfg.cfg = cfg_init(opts, 0);
+    cfg_parse(app_cfg.cfg, fname);
     if (!strcmp(app_cfg.bm_policy, "Equal Division")) {
         app.get_threshold = qlen_threshold_equal_division;
     } else if (!strcmp(app_cfg.bm_policy, "Dynamic Threshold")
