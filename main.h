@@ -34,9 +34,7 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
-#include <stdint.h>
 #include <confuse.h>
-#include <sys/time.h>
 
 #ifndef APP_MBUF_ARRAY_SIZE
 #define APP_MBUF_ARRAY_SIZE 256
@@ -65,8 +63,8 @@ struct app_mbuf_array {
 
 struct app_fwd_table_item {
     uint8_t port_id;
-    /* the time when the item is added */
-    struct timeval timestamp;
+    /* the time (in cpu frequency) when the item is added */
+    uint64_t timestamp;
 };
 
 struct app_configs {

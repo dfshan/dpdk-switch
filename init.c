@@ -344,12 +344,14 @@ int app_init_forwarding_table(const char* tname) {
         RTE_LOG(ERR, HASH, "%s: ERROR when create hash table.\n", __func__);
         return -1;
     }
+    app.fwd_item_valid_time = app.cpu_freq / 1000 * VALID_TIME;
     return 0;
 }
 
 void
 app_init(void)
 {
+    app.cpu_freq = rte_get_tsc_hz();
     app_init_mbuf_pools();
     app_init_rings();
     app_init_ports();

@@ -37,7 +37,8 @@ app_l2_learning(const struct ether_addr* srcaddr, uint8_t port) {
     } else if (index == -ENOENT) {
         int new_ind = rte_hash_add_key(app.l2_hash, srcaddr);
         app.fwd_table[new_ind].port_id = port;
-        gettimeofday(&app.fwd_table[new_ind].timestamp, NULL);
+        app.fwd_table[new_ind].timestamp = rte_get_tsc_cycles();
+        /* gettimeofday(&app.fwd_table[new_ind].timestamp, NULL); */
         RTE_LOG(
             INFO, HASH,
             "%s: new item in forwarding table:"
@@ -60,7 +61,8 @@ app_l2_learning(const struct ether_addr* srcaddr, uint8_t port) {
     } else {
         int old_port = app.fwd_table[index].port_id;
         app.fwd_table[index].port_id = port;
-        gettimeofday(&app.fwd_table[index].timestamp, NULL);
+        app.fwd_table[index].timestamp = rte_get_tsc_cycles();
+        /*gettimeofday(&app.fwd_table[index].timestamp, NULL);*/
         if (old_port != port) {
             RTE_LOG(
                 INFO, HASH,
@@ -83,7 +85,27 @@ int
 app_l2_lookup(const struct ether_addr* addr) {
     int index = rte_hash_lookup(app.l2_hash, addr);
     if (index >= 0 && index < FORWARD_ENTRY) {
-        struct timeval now_time, intv_time;
+        uint64_t now_time = rte_get_tsc_cycles();
+        uint64_t interval = now_time - app.fwd_table[index].timestamp;
+        if (interval <= app.fwd_item_valid_time) {
+            return app.fwd_table[index].port_id;
+        } else {
+            RTE_LOG(
+                INFO, HASH,
+                "%s: Fowllowing item is outdated, delete it from forwarding table:"
+                " %02" PRIx8 " %02" PRIx8 " %02" PRIx8
+                " %02" PRIx8 " %02" PRIx8 " %02" PRIx8
+                "--> %d\n",
+                __func__,
+                addr->addr_bytes[0], addr->addr_bytes[1],
+                addr->addr_bytes[2], addr->addr_bytes[3],
+                addr->addr_bytes[4], addr->addr_bytes[5],
+                app.ports[app.fwd_table[index].port_id]
+            );
+            rte_hash_del_key(app.l2_hash, addr);
+            return -1;
+        }
+        /*struct timeval now_time, intv_time;
         gettimeofday(&now_time, NULL);
         timersub(&now_time, &app.fwd_table[index].timestamp, &intv_time);
         long intv_time_us = intv_time.tv_sec * 1000 * 1000 + intv_time.tv_usec;
@@ -92,7 +114,7 @@ app_l2_lookup(const struct ether_addr* addr) {
         } else {
             rte_hash_del_key(app.l2_hash, addr);
             return -1;
-        }
+        }*/
     }
     return -1;
 }
