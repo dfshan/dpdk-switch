@@ -39,6 +39,7 @@
 *.swp
 
 # dpdk generated files
+exp-data/
 build/
 *.map
 *.cmd
@@ -48,3 +49,4 @@ _postinstall
 _preinstall
 main
 *.log
+switch.conf
