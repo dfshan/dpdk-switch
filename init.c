@@ -248,7 +248,7 @@ app_ports_check_link(void)
 
         port = (uint8_t) app.ports[i];
         memset(&link, 0, sizeof(link));
-        rte_eth_link_get(port, &link);
+        rte_eth_link_get_nowait(port, &link);
         RTE_LOG(INFO, SWITCH, "Port %u (%u Gbps) %s\n",
             port,
             link.link_speed / 1000,
@@ -258,8 +258,10 @@ app_ports_check_link(void)
             all_ports_up = 0;
     }
 
-    if (all_ports_up == 0)
-        rte_panic("Some NIC ports are DOWN\n");
+    if (all_ports_up == 0) {
+        RTE_LOG(WARNING, SWITCH, "%s: Some NIC ports are DOWN\n", __func__);
+        // rte_panic("Some NIC ports are DOWN\n");
+    }
 }
 
 static void
@@ -322,7 +324,11 @@ app_init_ports(void)
 int app_init_forwarding_table(const char* tname) {
     size_t name_len = strlen(tname);
     if (name_len > MAX_NAME_LEN) {
-        RTE_LOG(ERR, HASH, "%s: ERROR when init forward table: table name too long\n", __func__);
+        RTE_LOG(
+            ERR, HASH,
+            "%s: ERROR when init forward table: table name too long\n",
+            __func__
+        );
         return -1;
     }
     rte_memcpy(app.ft_name, tname, name_len);

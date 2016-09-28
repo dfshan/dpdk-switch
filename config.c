@@ -168,19 +168,31 @@ app_read_config_file(const char *fname) {
             || !strcmp(app_cfg.bm_policy, "DT")) {
         app.get_threshold = qlen_threshold_dt;
     } else {
-        RTE_LOG(ERR, SWITCH, "%s: Unsupported buffer management policy: %s\n", __func__, app_cfg.bm_policy);
+        RTE_LOG(
+            ERR, SWITCH,
+            "%s: Unsupported buffer management policy: %s\n",
+            __func__, app_cfg.bm_policy
+        );
     }
     app.buff_size_pkts = (app_cfg.buffer_size > 0 ? app_cfg.buffer_size : app.buff_size_pkts);
     app.mean_pkt_size = (app_cfg.mean_pkt_size > 0 ? app_cfg.mean_pkt_size : app.mean_pkt_size);
     app.dt_shift_alpha = (app_cfg.dt_shift_alpha >= 0 ? app_cfg.dt_shift_alpha : app.dt_shift_alpha);
     if (app_cfg.log_qlen) {
         if (app_cfg.qlen_fname == NULL) {
-            RTE_LOG(ERR, SWITCH, "%s: Enable queue length log, but log file name is not specified.\n", __func__);
+            RTE_LOG(
+                ERR, SWITCH,
+                "%s: Enable queue length log, but log file name is not specified.\n",
+                __func__
+            );
         } else {
             app.qlen_file = fopen(app_cfg.qlen_fname, "w");
             if (app.qlen_file == NULL) {
                 perror("Open file error:");
-                RTE_LOG(ERR, SWITCH, "%s: Cannot open queue length log file %s\n", __func__, app_cfg.qlen_fname);
+                RTE_LOG(
+                    ERR, SWITCH,
+                    "%s: Cannot open queue length log file %s\n",
+                    __func__, app_cfg.qlen_fname
+                );
             } else {
                 app.log_qlen = 1;
             }
@@ -189,7 +201,12 @@ app_read_config_file(const char *fname) {
     RTE_LOG(
         INFO, SWITCH,
         "%s: bm_policy: %s, buffer_size: %upkts=%uKB, mean_pkt_size: %uB, dt_shift_alpha: %u\n",
-        __func__, app_cfg.bm_policy, app.buff_size_pkts, app.buff_size_pkts*app.mean_pkt_size/1024, app.mean_pkt_size, app.dt_shift_alpha
+        __func__,
+        app_cfg.bm_policy,
+        app.buff_size_pkts,
+        app.buff_size_pkts*app.mean_pkt_size/1024,
+        app.mean_pkt_size,
+        app.dt_shift_alpha
     );
     if (app.log_qlen) {
         RTE_LOG(

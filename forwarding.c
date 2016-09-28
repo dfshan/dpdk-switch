@@ -20,7 +20,11 @@
 int
 app_l2_learning(const struct ether_addr* srcaddr, uint8_t port) {
     if (app.l2_hash == NULL) {
-        RTE_LOG(ERR, HASH, "%s: ERROR hash table is not initialized.\n", __func__);
+        RTE_LOG(
+            ERR, HASH,
+            "%s: ERROR hash table is not initialized.\n",
+            __func__
+        );
         return -1;
     }
     int index = rte_hash_lookup(app.l2_hash, srcaddr);

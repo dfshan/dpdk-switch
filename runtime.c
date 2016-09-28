@@ -91,7 +91,11 @@ app_main_loop_rx(void) {
             app.mbuf_rx.array,
             app.burst_size_rx_read);
         if (n_mbufs >= app.burst_size_rx_read) {
-            RTE_LOG(DEBUG, SWITCH, "%s: receive %u packets from port %u\n", __func__, n_mbufs, app.ports[i]);
+            RTE_LOG(
+                DEBUG, SWITCH,
+                "%s: receive %u packets from port %u\n",
+                __func__, n_mbufs, app.ports[i]
+            );
         }
 
         if (n_mbufs == 0)
@@ -172,7 +176,11 @@ app_main_loop_worker(void) {
                 }
             }
         } else {
-            RTE_LOG(DEBUG, SWITCH, "%s: forward packet to %d\n", __func__, app.ports[dst_port]);
+            RTE_LOG(
+                DEBUG, SWITCH,
+                "%s: forward packet to %d\n",
+                __func__, app.ports[dst_port]
+            );
             packet_enqueue(dst_port, worker_mbuf->array[0]);
             /*rte_ring_sp_enqueue(
                 app.rings_tx[dst_port],
@@ -224,7 +232,11 @@ app_main_loop_tx(void) {
 
         n_mbufs += app.burst_size_tx_read;
 
-        RTE_LOG(DEBUG, SWITCH, "%s: port %u receive %u packets\n", __func__, app.ports[i], n_mbufs);
+        RTE_LOG(
+            DEBUG, SWITCH,
+            "%s: port %u receive %u packets\n",
+            __func__, app.ports[i], n_mbufs
+        );
 
         if (n_mbufs < app.burst_size_tx_write) {
             app.mbuf_tx[i].n_mbufs = n_mbufs;
@@ -256,7 +268,10 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     if (qlen_enque > threshold) {
         ret = -1;
     }
-    else if (app.buff_occu_bytes + pkt->pkt_len > app.buff_size_pkts * app.mean_pkt_size) {
+    else if (
+        app.buff_occu_bytes + pkt->pkt_len
+        > app.buff_size_pkts * app.mean_pkt_size
+    ) {
         ret = -2;
     } else {
         ret = 0;
@@ -276,7 +291,11 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
             pkt
         );
         if (enque_ret != 0) {
-            RTE_LOG(ERR, SWITCH, "%s: packet cannot enqueue in port %u", __func__, app.ports[dst_port]);
+            RTE_LOG(
+                ERR, SWITCH,
+                "%s: packet cannot enqueue in port %u",
+                __func__, app.ports[dst_port]
+            );
         }
         app.qlen_bytes[dst_port] += pkt->pkt_len;
         app.qlen_pkts[dst_port] ++;
@@ -300,13 +319,25 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     rte_spinlock_unlock(&app.lock_buff);
     switch (ret) {
     case 0:
-        RTE_LOG(DEBUG, SWITCH, "%s: packet enqueue to port %u\n", __func__, app.ports[dst_port]);
+        RTE_LOG(
+            DEBUG, SWITCH,
+            "%s: packet enqueue to port %u\n",
+            __func__, app.ports[dst_port]
+        );
         break;
     case -1:
-        RTE_LOG(DEBUG, SWITCH, "%s: Packet dropped due to queue length > threshold\n", __func__);
+        RTE_LOG(
+            DEBUG, SWITCH,
+            "%s: Packet dropped due to queue length > threshold\n",
+            __func__
+        );
         break;
     case -2:
-        RTE_LOG(DEBUG, SWITCH, "%s: Packet dropped due to buffer overflow\n", __func__);
+        RTE_LOG(
+            DEBUG, SWITCH,
+            "%s: Packet dropped due to buffer overflow\n",
+            __func__
+        );
     }
     return ret;
 }

@@ -83,6 +83,7 @@ extern struct app_configs app_cfg;
 
 extern volatile bool force_quit;
 struct app_params {
+    uint64_t cpu_freq;
     uint64_t start_cycle;
     /* CPU cores */
     uint32_t core_rx;
@@ -150,6 +151,7 @@ struct app_params {
     struct app_fwd_table_item fwd_table[FORWARD_ENTRY];
     char ft_name[MAX_NAME_LEN]; /* forward table name */
     struct rte_hash* l2_hash;
+    uint64_t fwd_item_valid_time; /* valide time of forward item, in CPU cycles */
 } __rte_cache_aligned;
 
 extern struct app_params app;
