@@ -183,8 +183,7 @@ app_init_locks(void) {
 }
 
 static void
-app_init_mbuf_pools(void)
-{
+app_init_mbuf_pools(void) {
     /* Init the buffer pool */
     RTE_LOG(INFO, SWITCH, "Creating the mbuf pool ...\n");
     uint32_t temp_pool_size = (topower2(app.buff_size_pkts) << 2) - 1;
@@ -196,8 +195,7 @@ app_init_mbuf_pools(void)
 }
 
 static void
-app_init_rings(void)
-{
+app_init_rings(void) {
     uint32_t i;
 
     app.ring_rx_size = (topower2(app.buff_size_pkts) << 2);
@@ -236,8 +234,7 @@ app_init_rings(void)
 }
 
 static void
-app_ports_check_link(void)
-{
+app_ports_check_link(void) {
     uint32_t all_ports_up, i;
 
     all_ports_up = 1;
@@ -265,8 +262,7 @@ app_ports_check_link(void)
 }
 
 static void
-app_init_ports(void)
-{
+app_init_ports(void) {
     uint32_t i;
 
     /* Init NIC ports, then start the ports */
@@ -349,8 +345,7 @@ int app_init_forwarding_table(const char* tname) {
 }
 
 void
-app_init(void)
-{
+app_init(void) {
     app.cpu_freq = rte_get_tsc_hz();
     app_init_mbuf_pools();
     app_init_rings();

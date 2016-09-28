@@ -81,14 +81,12 @@
 static const char usage[] = "./<app name> [EAL options] -- -p PORTMASK -b BUFFER SIZE IN PKTS -m MEAN PKT SIZE\n";
 
 void
-app_print_usage(void)
-{
+app_print_usage(void) {
     printf("USAGE: %s", usage);
 }
 
 static int
-app_parse_port_mask(const char *arg)
-{
+app_parse_port_mask(const char *arg) {
     char *end = NULL;
     uint64_t port_mask;
     uint32_t i;
@@ -219,8 +217,7 @@ app_read_config_file(const char *fname) {
 }
 
 int
-app_parse_args(int argc, char **argv)
-{
+app_parse_args(int argc, char **argv) {
     int opt, ret;
     char **argvopt;
     int option_index;

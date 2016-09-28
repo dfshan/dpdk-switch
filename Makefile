@@ -41,7 +41,7 @@ APP = main
 CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
 
-CFLAGS += -lconfuse
+LDLIBS += -lconfuse
 
 #
 # all source are stored in SRCS-y
@@ -56,6 +56,6 @@ SRCS-y += qlen-threshold.c
 # this application needs libraries first
 DEPDIRS-y += lib drivers
 
-include $(RTE_SDK)/mk/rte.app.mk
+include $(RTE_SDK)/mk/rte.extapp.mk
 
 endif

@@ -125,8 +125,7 @@ app_quit(void) {
 }
 
 int
-main(int argc, char **argv)
-{
+main(int argc, char **argv) {
     uint32_t lcore;
     int ret;
 
@@ -168,8 +167,7 @@ main(int argc, char **argv)
 }
 
 int
-app_lcore_main_loop(__attribute__((unused)) void *arg)
-{
+app_lcore_main_loop(__attribute__((unused)) void *arg) {
     unsigned lcore;
 
     lcore = rte_lcore_id();
