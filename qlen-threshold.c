@@ -57,8 +57,8 @@ uint32_t
 qlen_threshold_dt(uint32_t port_id) {
     port_id = port_id << 1; /* prevent warning */
 #if QUE_IN_BYTES == 1
-    return ((app.buff_size_pkts * app.mean_pkt_size - app.buff_occu_bytes) >> app.dt_shift_alpha);
+    return ((app.buff_size_pkts * app.mean_pkt_size - app.buff_occu_bytes) << app.dt_shift_alpha);
 #else
-    return ((app.buff_size_pkts - app.buff_occu_pkts) >> app.dt_shift_alpha);
+    return ((app.buff_size_pkts - app.buff_occu_pkts) << app.dt_shift_alpha);
 #endif
 }
