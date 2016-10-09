@@ -144,6 +144,7 @@ struct app_configs app_cfg = {
     .bm_policy = NULL,
     .qlen_fname = NULL,
     .log_qlen = cfg_false,
+    .tx_rate_mbps = -1,
     .cfg = NULL
 };
 
@@ -156,10 +157,18 @@ app_read_config_file(const char *fname) {
         CFG_SIMPLE_INT("dt_shift_alpha", &app_cfg.dt_shift_alpha),
         CFG_SIMPLE_BOOL("log_queue_length", &app_cfg.log_qlen),
         CFG_SIMPLE_STR("queue_length_file", &app_cfg.qlen_fname),
+        CFG_SIMPLE_INT("tx_rate_mbps", &app_cfg.tx_rate_mbps),
         CFG_END()
     };
     app_cfg.cfg = cfg_init(opts, 0);
-    cfg_parse(app_cfg.cfg, fname);
+    if (cfg_parse(app_cfg.cfg, fname) == CFG_FILE_ERROR) {
+        RTE_LOG(
+            ERR, SWITCH,
+            "%s: Configuration file %s cannot open for reading.\n",
+            __func__, fname
+        );
+        return 1;
+    }
     if (!strcmp(app_cfg.bm_policy, "Equal Division")) {
         app.get_threshold = qlen_threshold_equal_division;
     } else if (!strcmp(app_cfg.bm_policy, "Dynamic Threshold")
@@ -175,6 +184,7 @@ app_read_config_file(const char *fname) {
     app.buff_size_pkts = (app_cfg.buffer_size > 0 ? app_cfg.buffer_size : app.buff_size_pkts);
     app.mean_pkt_size = (app_cfg.mean_pkt_size > 0 ? app_cfg.mean_pkt_size : app.mean_pkt_size);
     app.dt_shift_alpha = (app_cfg.dt_shift_alpha >= 0 ? app_cfg.dt_shift_alpha : app.dt_shift_alpha);
+    app.tx_rate_mbps = (app_cfg.tx_rate_mbps >= 0 ? app_cfg.tx_rate_mbps: 0);
     if (app_cfg.log_qlen) {
         if (app_cfg.qlen_fname == NULL) {
             RTE_LOG(
@@ -198,13 +208,14 @@ app_read_config_file(const char *fname) {
     }
     RTE_LOG(
         INFO, SWITCH,
-        "%s: bm_policy: %s, buffer_size: %upkts=%uKB, mean_pkt_size: %uB, dt_shift_alpha: %u\n",
+        "%s: bm_policy: %s, buffer_size: %upkts=%uKB, mean_pkt_size: %uB, dt_shift_alpha: %u tx_rate: %uMbps\n",
         __func__,
         app_cfg.bm_policy,
         app.buff_size_pkts,
         app.buff_size_pkts*app.mean_pkt_size/1024,
         app.mean_pkt_size,
-        app.dt_shift_alpha
+        app.dt_shift_alpha,
+        app.tx_rate_mbps
     );
     if (app.log_qlen) {
         RTE_LOG(

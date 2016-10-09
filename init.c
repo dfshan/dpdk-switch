@@ -116,6 +116,8 @@ struct app_params app = {
     /* forwarding things */
     .ft_name = "Forwarding Table",
     .l2_hash = NULL,
+
+    .tx_rate_mbps = 0,
 };
 
 static struct rte_eth_conf port_conf = {

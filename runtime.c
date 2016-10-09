@@ -199,11 +199,16 @@ app_main_loop_worker(void) {
 
 void
 app_main_loop_tx(void) {
-    uint32_t i, j;
+    uint32_t i;
     struct rte_mbuf* pkt;
 
     RTE_LOG(INFO, SWITCH, "Core %u is doing TX\n", rte_lcore_id());
 
+    /* next time allowed to transmit packets */
+    uint64_t next_tx_time[APP_MAX_PORTS];
+    for (i = 0; i < app.n_ports; i++) {
+        next_tx_time[i] = rte_get_tsc_cycles();
+    }
     for (i = 0; !force_quit; i = ((i + 1) & (app.n_ports - 1))) {
         uint16_t n_mbufs, n_pkts;
         int ret;
@@ -211,26 +216,33 @@ app_main_loop_tx(void) {
         n_mbufs = app.mbuf_tx[i].n_mbufs;
 
         rte_spinlock_lock(&app.lock_buff);
-        ret = rte_ring_sc_dequeue_bulk(
-            app.rings_tx[i],
-            (void **) &app.mbuf_tx[i].array[n_mbufs],
-            app.burst_size_tx_read);
-
-        if (ret == -ENOENT) {
+        uint64_t current_time = rte_get_tsc_cycles();
+        if (app.tx_rate_mbps > 0 && current_time < next_tx_time[i]) {
             rte_spinlock_unlock(&app.lock_buff);
             continue;
         }
+        ret = rte_ring_sc_dequeue(
+            app.rings_tx[i],
+            (void **) &app.mbuf_tx[i].array[n_mbufs]);
 
-        for (j = 0; j < app.burst_size_tx_read; j++) {
-            pkt = app.mbuf_tx[i].array[n_mbufs+j];
-            app.qlen_bytes[i] -= pkt->pkt_len;
-            app.qlen_pkts[i] --;
-            app.buff_occu_bytes -= pkt->pkt_len;
-            app.buff_occu_pkts --;
+        if (ret == -ENOENT) { /* no packets in tx ring */
+            rte_spinlock_unlock(&app.lock_buff);
+            next_tx_time[i] = current_time;
+            continue;
+        }
+
+        pkt = app.mbuf_tx[i].array[n_mbufs];
+        app.qlen_bytes[i] -= pkt->pkt_len;
+        app.qlen_pkts[i] --;
+        app.buff_occu_bytes -= pkt->pkt_len;
+        app.buff_occu_pkts --;
+        if (app.tx_rate_mbps > 0) {
+            // we assume that CPU is very fast
+            next_tx_time[i] = current_time + pkt->pkt_len * app.cpu_freq * 8 / app.tx_rate_mbps / 1000 / 1000;
         }
         rte_spinlock_unlock(&app.lock_buff);
 
-        n_mbufs += app.burst_size_tx_read;
+        n_mbufs ++;
 
         RTE_LOG(
             DEBUG, SWITCH,
@@ -249,9 +261,16 @@ app_main_loop_tx(void) {
                 app.ports[i],
                 0,
                 &app.mbuf_tx[i].array[k],
-                n_mbufs);
+                n_mbufs - k);
             k += n_pkts;
-        } while (n_pkts < n_mbufs);
+            if (k < n_mbufs) {
+                RTE_LOG(
+                    DEBUG, SWITCH,
+                    "%s: Transmit ring is full in port %u\n",
+                    __func__, app.ports[i]
+                );
+            }
+        } while (k < n_mbufs);
 
         app.mbuf_tx[i].n_mbufs = 0;
     }

@@ -74,6 +74,7 @@ struct app_configs {
     char *bm_policy;
     cfg_bool_t log_qlen;
     char *qlen_fname;
+    long tx_rate_mbps;
     cfg_t *cfg;
 };
 
@@ -150,6 +151,8 @@ struct app_params {
     char ft_name[MAX_NAME_LEN]; /* forward table name */
     struct rte_hash* l2_hash;
     uint64_t fwd_item_valid_time; /* valide time of forward item, in CPU cycles */
+
+    uint32_t tx_rate_mbps; /* the rate (in Mbps) from tx ring to tx queue */
 } __rte_cache_aligned;
 
 extern struct app_params app;
