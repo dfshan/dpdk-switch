@@ -6,7 +6,7 @@ This is a l2 learning switch based on DPDK.
 * Shared Memory
 
 # Requirements
-* [DPDK](http://dpdk.org/) >= 16.07
+* [DPDK](http://dpdk.org/) == 17.08.1
 * [libConfuse](https://github.com/martinh/libconfuse) >= 2.7
 
 # How to run it
