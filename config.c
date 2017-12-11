@@ -51,12 +51,11 @@
 #include <rte_memcpy.h>
 #include <rte_memzone.h>
 #include <rte_eal.h>
-#include <rte_per_lcore.h>
+#include <rte_lcore.h>
 #include <rte_launch.h>
 #include <rte_atomic.h>
 #include <rte_cycles.h>
 #include <rte_prefetch.h>
-#include <rte_lcore.h>
 #include <rte_per_lcore.h>
 #include <rte_branch_prediction.h>
 #include <rte_interrupts.h>
@@ -65,7 +64,6 @@
 #include <rte_debug.h>
 #include <rte_ether.h>
 #include <rte_ethdev.h>
-#include <rte_ring.h>
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <rte_ip.h>
@@ -144,6 +142,7 @@ struct app_configs app_cfg = {
     .bm_policy = NULL,
     .qlen_fname = NULL,
     .log_qlen = cfg_false,
+	.log_qlen_port = -1,
     .tx_rate_mbps = -1,
     .cfg = NULL
 };
@@ -156,6 +155,7 @@ app_read_config_file(const char *fname) {
         CFG_SIMPLE_STR("buffer_management_policy", &app_cfg.bm_policy),
         CFG_SIMPLE_INT("dt_shift_alpha", &app_cfg.dt_shift_alpha),
         CFG_SIMPLE_BOOL("log_queue_length", &app_cfg.log_qlen),
+        CFG_SIMPLE_INT("log_queue_length_port", &app_cfg.log_qlen_port),
         CFG_SIMPLE_STR("queue_length_file", &app_cfg.qlen_fname),
         CFG_SIMPLE_INT("tx_rate_mbps", &app_cfg.tx_rate_mbps),
         CFG_END()
@@ -203,6 +203,17 @@ app_read_config_file(const char *fname) {
                 );
             } else {
                 app.log_qlen = 1;
+				if (app_cfg.log_qlen_port >= 0 && app_cfg.log_qlen_port < app.n_ports) {
+					app.log_qlen_port = app_cfg.log_qlen_port;
+				} else {
+					app.log_qlen_port = app.n_ports;
+					RTE_LOG(
+						WARNING, SWITCH,
+						"%s: The log queue length port (%ld) is invalid. \
+						Queue length logging is enabled for all ports.",
+						__func__, app_cfg.log_qlen_port
+					);
+				}
             }
         }
     }
@@ -218,11 +229,20 @@ app_read_config_file(const char *fname) {
         app.tx_rate_mbps
     );
     if (app.log_qlen) {
-        RTE_LOG(
-            INFO, SWITCH,
-            "%s: Queue length logging is enabled. Logging is dumped into file %s\n",
-            __func__, app_cfg.qlen_fname
-        );
+		if (app.log_qlen_port >= 0 && app.log_qlen_port < app.n_ports) {
+			RTE_LOG(
+				INFO, SWITCH,
+				"%s: Queue length logging is enabled for port %u. Logging is dumped into file %s\n",
+				__func__, app.log_qlen_port, app_cfg.qlen_fname
+			);
+		} else {
+			RTE_LOG(
+				WARNING, SWITCH,
+				"%s: Queue length logging is enabled for all ports. \
+				Logging is dumped into file %s\n",
+				__func__, app_cfg.qlen_fname
+			);
+		}
     }
     return 0;
 }
@@ -291,7 +311,7 @@ app_parse_args(int argc, char **argv) {
         argv[optind - 1] = prgname;
 
     ret = optind - 1;
-    optind = 0; /* reset getopt lib */
+    optind = 1; /* reset getopt lib */
     app_read_config_file("switch.conf");
     return ret;
 }

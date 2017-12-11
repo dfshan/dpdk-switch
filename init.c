@@ -51,13 +51,11 @@
 #include <rte_memcpy.h>
 #include <rte_memzone.h>
 #include <rte_eal.h>
-#include <rte_per_lcore.h>
 #include <rte_launch.h>
 #include <rte_atomic.h>
 #include <rte_cycles.h>
 #include <rte_prefetch.h>
 #include <rte_lcore.h>
-#include <rte_per_lcore.h>
 #include <rte_branch_prediction.h>
 #include <rte_interrupts.h>
 #include <rte_pci.h>
@@ -93,6 +91,7 @@ struct app_params app = {
     .qlen_file = NULL,
     .get_threshold = qlen_threshold_equal_division,
     .dt_shift_alpha = 0,
+	.qlen_start_cycle = 0,
 
     /* Rings */
     .ring_rx_size = 128,
@@ -127,7 +126,7 @@ static struct rte_eth_conf port_conf = {
         .hw_ip_checksum = 1, /* IP checksum offload enabled */
         .hw_vlan_filter = 0, /* VLAN filtering disabled */
         .jumbo_frame    = 0, /* Jumbo Frame Support disabled */
-        .hw_strip_crc   = 0, /* CRC stripped by hardware */
+        .hw_strip_crc   = 1, /* CRC stripped by hardware */
     },
     .rx_adv_conf = {
         .rss_conf = {
@@ -342,13 +341,11 @@ int app_init_forwarding_table(const char* tname) {
         RTE_LOG(ERR, HASH, "%s: ERROR when create hash table.\n", __func__);
         return -1;
     }
-    app.fwd_item_valid_time = app.cpu_freq / 1000 * VALID_TIME;
     return 0;
 }
 
 void
 app_init(void) {
-    app.cpu_freq = rte_get_tsc_hz();
     app_init_mbuf_pools();
     app_init_rings();
     app_init_ports();

@@ -73,6 +73,7 @@ struct app_configs {
     long dt_shift_alpha;
     char *bm_policy;
     cfg_bool_t log_qlen;
+	long log_qlen_port;
     char *qlen_fname;
     long tx_rate_mbps;
     cfg_t *cfg;
@@ -82,8 +83,8 @@ extern struct app_configs app_cfg;
 
 extern volatile bool force_quit;
 struct app_params {
-    uint64_t cpu_freq;
-    uint64_t start_cycle;
+	uint64_t cpu_freq[RTE_MAX_LCORE];
+	uint64_t start_cycle;
     /* CPU cores */
     uint32_t core_rx;
     uint32_t core_worker;
@@ -101,14 +102,18 @@ struct app_params {
     uint32_t buff_occu_pkts;
     uint32_t buff_occu_bytes;
     /* whether log queue length and the file to put log in */
-    uint32_t log_qlen;
+    uint32_t
+		log_qlen:1,
+		log_qlen_port:5,
+		dt_shift_alpha:14, /* parameter alpha of DT = 1 << dt_shift_alpha*/
+		unused:12;
+    uint64_t qlen_start_cycle;
+
     FILE* qlen_file;
     /*rte_rwlock_t lock_bocu;*/
     rte_spinlock_t lock_buff;
     get_threshold_callback_fn get_threshold;
 
-    /* parameter alpha of DT = 1 << dt_shift_alpha*/
-    uint32_t dt_shift_alpha;
 
     /*
      * mean packet size in bytes
@@ -145,7 +150,7 @@ struct app_params {
 
     /* App behavior */
     // uint32_t pipeline_type;
-    
+
     /* things about forwarding table */
     struct app_fwd_table_item fwd_table[FORWARD_ENTRY];
     char ft_name[MAX_NAME_LEN]; /* forward table name */

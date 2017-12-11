@@ -56,7 +56,6 @@
 #include <rte_cycles.h>
 #include <rte_prefetch.h>
 #include <rte_lcore.h>
-#include <rte_per_lcore.h>
 #include <rte_branch_prediction.h>
 #include <rte_interrupts.h>
 #include <rte_pci.h>
@@ -82,6 +81,7 @@ app_main_loop_rx(void) {
 
     RTE_LOG(INFO, SWITCH, "Core %u is doing RX\n", rte_lcore_id());
 
+    app.cpu_freq[rte_lcore_id()] = rte_get_tsc_hz();
     for (i = 0; !force_quit ; i = ((i + 1) & (app.n_ports - 1))) {
         uint16_t n_mbufs;
 
@@ -105,8 +105,8 @@ app_main_loop_rx(void) {
             ret = rte_ring_sp_enqueue_bulk(
                 app.rings_rx[i],
                 (void **) app.mbuf_rx.array,
-                n_mbufs);
-        } while (ret < 0);
+                n_mbufs, NULL);
+        } while (ret == 0);
     }
 }
 
@@ -121,11 +121,14 @@ app_main_loop_worker(void) {
     RTE_LOG(INFO, SWITCH, "Core %u is doing work (no pipeline)\n",
         rte_lcore_id());
 
+    app.cpu_freq[rte_lcore_id()] = rte_get_tsc_hz();
+    app.fwd_item_valid_time = app.cpu_freq[rte_lcore_id()] / 1000 * VALID_TIME;
+
     if (app.log_qlen) {
         fprintf(
             app.qlen_file,
-            "%-10s %-8s %-8s %-8s %-8s %-8s\n",
-            "<RSC cycle>",
+            "# %-10s %-8s %-8s %-8s %-8s %-8s\n",
+            "<Time (in s)>",
             "<Port id>",
             "<Qlen in pkts>",
             "<Qlen in B>",
@@ -201,11 +204,12 @@ void
 app_main_loop_tx(void) {
     uint32_t i;
     struct rte_mbuf* pkt;
+    /* next time allowed to transmit packets */
+    uint64_t next_tx_time[APP_MAX_PORTS];
 
     RTE_LOG(INFO, SWITCH, "Core %u is doing TX\n", rte_lcore_id());
 
-    /* next time allowed to transmit packets */
-    uint64_t next_tx_time[APP_MAX_PORTS];
+    app.cpu_freq[rte_lcore_id()] = rte_get_tsc_hz();
     for (i = 0; i < app.n_ports; i++) {
         next_tx_time[i] = rte_get_tsc_cycles();
     }
@@ -238,7 +242,8 @@ app_main_loop_tx(void) {
         app.buff_occu_pkts --;
         if (app.tx_rate_mbps > 0) {
             // we assume that CPU is very fast
-            next_tx_time[i] = current_time + pkt->pkt_len * app.cpu_freq * 8 / app.tx_rate_mbps / 1000 / 1000;
+            next_tx_time[i] = current_time + \
+							  pkt->pkt_len * app.cpu_freq[app.core_tx] * 8 / app.tx_rate_mbps / (1e6);
         }
         rte_spinlock_unlock(&app.lock_buff);
 
@@ -320,11 +325,17 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
         app.qlen_pkts[dst_port] ++;
         app.buff_occu_bytes += pkt->pkt_len;
         app.buff_occu_pkts ++;
-        if (app.log_qlen && pkt->pkt_len >= app.mean_pkt_size) {
+        if (
+			app.log_qlen && pkt->pkt_len >= app.mean_pkt_size &&
+			(app.log_qlen_port >= app.n_ports || app.log_qlen_port == dst_port)
+		) {
+			if (app.qlen_start_cycle == 0) {
+				app.qlen_start_cycle = rte_get_tsc_cycles();
+			}
             fprintf(
                 app.qlen_file,
-                "%-10lu %-8u %-8u %-8u %-8u %-8u\n",
-                rte_get_tsc_cycles() - app.start_cycle,
+				"%-12.6f %-8u %-8u %-8u %-8u %-8u\n",
+				(float) (rte_get_tsc_cycles() - app.qlen_start_cycle) / app.cpu_freq[rte_lcore_id()],
                 app.ports[dst_port],
                 app.qlen_pkts[dst_port],
                 app.qlen_bytes[dst_port],

@@ -53,9 +53,6 @@ SRCS-y += runtime.c
 SRCS-y += forwarding.c
 SRCS-y += qlen-threshold.c
 
-# this application needs libraries first
-DEPDIRS-y += lib drivers
-
 include $(RTE_SDK)/mk/rte.extapp.mk
 
 endif
