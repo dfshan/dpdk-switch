@@ -1,9 +1,12 @@
 buffer_management_policy = "Equal Division"
-buffer_size = 350
-mean_packet_size = 1500
+# buffer size in KiB
+buffer_size = 512
 dt_shift_alpha = 0
 log_queue_length = true
 log_queue_length_port = 0
 queue_length_file = "/dev/shm/dpdk-qlen.log"
+ecn_enable = true
+# ecn threshold in KB
+ecn_threshold = 32
 # rate limit
 tx_rate_mbps = 999
