@@ -83,10 +83,11 @@ struct app_params app = {
     .port_tx_ring_size = 32,
 
     /* switch buffer */
-    .buff_size_pkts = 256,
-    .mean_pkt_size = 1500,
-    .buff_occu_pkts = 0,
-    .buff_occu_bytes = 0,
+    .buff_size_bytes = 256,
+    .buff_bytes_in = 0,
+    .buff_pkts_in = 0,
+    .buff_bytes_out = 0,
+    .buff_pkts_out = 0,
     .log_qlen = 0,
     .qlen_file = NULL,
     .get_threshold = qlen_threshold_equal_division,
@@ -116,6 +117,8 @@ struct app_params app = {
     .ft_name = "Forwarding Table",
     .l2_hash = NULL,
 
+	.ecn_enable = 0,
+	.ecn_thresh_kb = 0,
     .tx_rate_mbps = 0,
 };
 
@@ -187,7 +190,7 @@ static void
 app_init_mbuf_pools(void) {
     /* Init the buffer pool */
     RTE_LOG(INFO, SWITCH, "Creating the mbuf pool ...\n");
-    uint32_t temp_pool_size = (topower2(app.buff_size_pkts) << 2) - 1;
+    uint32_t temp_pool_size = (topower2(app.buff_size_bytes / MEAN_PKT_SIZE) << 2) - 1;
     app.pool_size = (app.pool_size < temp_pool_size ? temp_pool_size : app.pool_size);
     app.pool = rte_pktmbuf_pool_create("mempool", app.pool_size,
         app.pool_cache_size, 0, app.pool_buffer_size, rte_socket_id());
@@ -199,7 +202,7 @@ static void
 app_init_rings(void) {
     uint32_t i;
 
-    app.ring_rx_size = (topower2(app.buff_size_pkts) << 2);
+    app.ring_rx_size = (topower2(app.buff_size_bytes / MEAN_PKT_SIZE) << 2);
     for (i = 0; i < app.n_ports; i++) {
         char name[32];
 
@@ -215,7 +218,7 @@ app_init_rings(void) {
             rte_panic("Cannot create RX ring %u\n", i);
     }
 
-    app.ring_tx_size = (topower2(app.buff_size_pkts) << 2);
+    app.ring_tx_size = (topower2(app.buff_size_bytes / MEAN_PKT_SIZE) << 2);
     for (i = 0; i < app.n_ports; i++) {
         char name[32];
 
@@ -229,7 +232,8 @@ app_init_rings(void) {
 
         if (app.rings_tx[i] == NULL)
             rte_panic("Cannot create TX ring %u\n", i);
-        app.qlen_bytes[i] = app.qlen_pkts[i] = 0;
+        app.qlen_bytes_in[i] = app.qlen_pkts_in[i] = 0;
+        app.qlen_bytes_out[i] = app.qlen_pkts_out[i] = 0;
     }
 
 }

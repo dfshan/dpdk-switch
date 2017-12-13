@@ -127,13 +127,11 @@ app_main_loop_worker(void) {
     if (app.log_qlen) {
         fprintf(
             app.qlen_file,
-            "# %-10s %-8s %-8s %-8s %-8s %-8s\n",
+            "# %-10s %-8s %-8s %-8s\n",
             "<Time (in s)>",
             "<Port id>",
-            "<Qlen in pkts>",
-            "<Qlen in B>",
-            "<Buffer occupancy in packets>",
-            "<Buffer occupancy in B>"
+            "<Qlen in Bytes>",
+            "<Buffer occupancy in Bytes>"
         );
         fflush(app.qlen_file);
     }
@@ -219,10 +217,8 @@ app_main_loop_tx(void) {
 
         n_mbufs = app.mbuf_tx[i].n_mbufs;
 
-        rte_spinlock_lock(&app.lock_buff);
         uint64_t current_time = rte_get_tsc_cycles();
         if (app.tx_rate_mbps > 0 && current_time < next_tx_time[i]) {
-            rte_spinlock_unlock(&app.lock_buff);
             continue;
         }
         ret = rte_ring_sc_dequeue(
@@ -230,22 +226,20 @@ app_main_loop_tx(void) {
             (void **) &app.mbuf_tx[i].array[n_mbufs]);
 
         if (ret == -ENOENT) { /* no packets in tx ring */
-            rte_spinlock_unlock(&app.lock_buff);
             next_tx_time[i] = current_time;
             continue;
         }
 
         pkt = app.mbuf_tx[i].array[n_mbufs];
-        app.qlen_bytes[i] -= pkt->pkt_len;
-        app.qlen_pkts[i] --;
-        app.buff_occu_bytes -= pkt->pkt_len;
-        app.buff_occu_pkts --;
+		app.qlen_bytes_out[i] += pkt->pkt_len;
+		app.qlen_pkts_out[i] ++;
+		app.buff_bytes_out += pkt->pkt_len;
+		app.buff_pkts_out ++;
         if (app.tx_rate_mbps > 0) {
             // we assume that CPU is very fast
             next_tx_time[i] = current_time + \
 							  pkt->pkt_len * app.cpu_freq[app.core_tx] * 8 / app.tx_rate_mbps / (1e6);
         }
-        rte_spinlock_unlock(&app.lock_buff);
 
         n_mbufs ++;
 
@@ -281,34 +275,59 @@ app_main_loop_tx(void) {
     }
 }
 
-uint32_t
-packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
-    int ret = 0;
+static int mark_packet_with_ecn(struct rte_mbuf *pkt) {
+	struct ipv4_hdr *iphdr;
+	uint16_t cksum;
+	if (RTE_ETH_IS_IPV4_HDR(pkt->packet_type)) {
+		iphdr = rte_pktmbuf_mtod_offset(pkt, struct ipv4_hdr *, sizeof(struct ether_hdr));
+		if ((iphdr->type_of_service & 0x03) != 0) {
+			iphdr->type_of_service |= 0x3;
+			iphdr->hdr_checksum = 0;
+			cksum = rte_ipv4_cksum(iphdr);
+			iphdr->hdr_checksum = cksum;
+		} else {
+			return -2;
+		}
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
+uint32_t get_qlen_bytes(uint32_t port_id) {
+	return app.qlen_bytes_in[port_id] - app.qlen_bytes_out[port_id];
+}
+
+uint32_t get_buff_occu_bytes(void) {
+	return app.buff_bytes_in - app.buff_bytes_out;
+}
+
+int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
+    int ret = 0, mark_pkt = 0, mark_ret;
+	uint32_t qlen_bytes = get_qlen_bytes(dst_port);
     /*Check whether buffer overflows after enqueue*/
-    rte_spinlock_lock(&app.lock_buff);
     uint32_t threshold = app.get_threshold(dst_port);
-#if QUE_IN_BYTES == 1
-    uint32_t qlen_enque = app.qlen_bytes[dst_port] + pkt->pkt_len;
+    uint32_t qlen_enque = qlen_bytes + pkt->pkt_len;
+	uint32_t buff_occu_bytes = get_buff_occu_bytes();
+	mark_pkt = (app.ecn_enable && qlen_bytes >= (app.ecn_thresh_kb<<10));
     if (qlen_enque > threshold) {
         ret = -1;
     }
     else if (
-        app.buff_occu_bytes + pkt->pkt_len
-        > app.buff_size_pkts * app.mean_pkt_size
+        buff_occu_bytes + pkt->pkt_len > app.buff_size_bytes
     ) {
         ret = -2;
     } else {
         ret = 0;
+		/* do ecn marking */
+		if (mark_pkt) {
+			mark_ret = mark_packet_with_ecn(pkt);
+			if (mark_ret < 0) {
+				ret = -3;
+			}
+		}
+		/* end */
     }
-#else
-    if (app.qlen_pkts[dst_port] + 1 > threshold) {
-        ret = -1;
-    } else if (app.buff_occu_pkts > app.buff_size_pkts) {
-        ret = -2;
-    } else {
-        ret = 0;
-    }
-#endif
     if (ret == 0) {
         int enque_ret = rte_ring_sp_enqueue(
             app.rings_tx[dst_port],
@@ -321,12 +340,12 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
                 __func__, app.ports[dst_port]
             );
         }
-        app.qlen_bytes[dst_port] += pkt->pkt_len;
-        app.qlen_pkts[dst_port] ++;
-        app.buff_occu_bytes += pkt->pkt_len;
-        app.buff_occu_pkts ++;
+		app.qlen_bytes_in[dst_port] += pkt->pkt_len;
+		app.qlen_pkts_in[dst_port] ++;
+		app.buff_bytes_in += pkt->pkt_len;
+		app.buff_pkts_in ++;
         if (
-			app.log_qlen && pkt->pkt_len >= app.mean_pkt_size &&
+			app.log_qlen && pkt->pkt_len >= MEAN_PKT_SIZE &&
 			(app.log_qlen_port >= app.n_ports || app.log_qlen_port == dst_port)
 		) {
 			if (app.qlen_start_cycle == 0) {
@@ -334,19 +353,16 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
 			}
             fprintf(
                 app.qlen_file,
-				"%-12.6f %-8u %-8u %-8u %-8u %-8u\n",
+				"%-12.6f %-8u %-8u %-8u\n",
 				(float) (rte_get_tsc_cycles() - app.qlen_start_cycle) / app.cpu_freq[rte_lcore_id()],
                 app.ports[dst_port],
-                app.qlen_pkts[dst_port],
-                app.qlen_bytes[dst_port],
-                app.buff_occu_pkts,
-                app.buff_occu_bytes
+				qlen_bytes,
+                buff_occu_bytes
             );
         }
     } else {
         rte_pktmbuf_free(pkt);
     }
-    rte_spinlock_unlock(&app.lock_buff);
     switch (ret) {
     case 0:
         RTE_LOG(
@@ -366,6 +382,12 @@ packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
         RTE_LOG(
             DEBUG, SWITCH,
             "%s: Packet dropped due to buffer overflow\n",
+            __func__
+        );
+    case -3:
+        RTE_LOG(
+            DEBUG, SWITCH,
+            "%s: Cannot mark packet with ECN, drop packet\n",
             __func__
         );
     }

@@ -106,7 +106,7 @@ app_quit(void) {
         rte_eth_dev_close(port);
     }
     /* free resources */
-    if (app_cfg.cfg != NULL) {
+    /*if (app_cfg.cfg != NULL) {
         cfg_free(app_cfg.cfg);
     }
     if (app_cfg.bm_policy != NULL) {
@@ -114,7 +114,7 @@ app_quit(void) {
     }
     if (app_cfg.qlen_fname != NULL) {
         free(app_cfg.qlen_fname);
-    }
+    }*/
     /* close files */
     if (app.log_qlen) {
         fclose(app.qlen_file);

@@ -76,7 +76,7 @@
 
 // struct app_params app;
 
-static const char usage[] = "./<app name> [EAL options] -- -p PORTMASK -b BUFFER SIZE IN PKTS -m MEAN PKT SIZE\n";
+static const char usage[] = "./<app name> [EAL options] -- -p PORTMASK\n";
 
 void
 app_print_usage(void) {
@@ -135,28 +135,30 @@ app_parse_port_mask(const char *arg) {
     return 0;
 }
 
-struct app_configs app_cfg = {
-    .buffer_size = -1,
-    .mean_pkt_size = -1,
-    .dt_shift_alpha = -1,
-    .bm_policy = NULL,
-    .qlen_fname = NULL,
-    .log_qlen = cfg_false,
-	.log_qlen_port = -1,
-    .tx_rate_mbps = -1,
-    .cfg = NULL
-};
 
 static int
 app_read_config_file(const char *fname) {
+	struct app_configs app_cfg = {
+	    .buffer_size_kb = -1,
+	    .dt_shift_alpha = -1,
+	    .bm_policy = NULL,
+	    .qlen_fname = NULL,
+	    .log_qlen = cfg_false,
+		.log_qlen_port = -1,
+		.ecn_enable = cfg_false,
+		.ecn_thresh_kb = 0,
+	    .tx_rate_mbps = -1,
+	    .cfg = NULL
+	};
     cfg_opt_t opts[] = {
-        CFG_SIMPLE_INT("buffer_size", &app_cfg.buffer_size),
-        CFG_SIMPLE_INT("mean_packet_size", &app_cfg.mean_pkt_size),
+        CFG_SIMPLE_INT("buffer_size", &app_cfg.buffer_size_kb),
         CFG_SIMPLE_STR("buffer_management_policy", &app_cfg.bm_policy),
         CFG_SIMPLE_INT("dt_shift_alpha", &app_cfg.dt_shift_alpha),
         CFG_SIMPLE_BOOL("log_queue_length", &app_cfg.log_qlen),
         CFG_SIMPLE_INT("log_queue_length_port", &app_cfg.log_qlen_port),
         CFG_SIMPLE_STR("queue_length_file", &app_cfg.qlen_fname),
+        CFG_SIMPLE_BOOL("ecn_enable", &app_cfg.ecn_enable),
+        CFG_SIMPLE_INT("ecn_threshold", &app_cfg.ecn_thresh_kb),
         CFG_SIMPLE_INT("tx_rate_mbps", &app_cfg.tx_rate_mbps),
         CFG_END()
     };
@@ -167,6 +169,15 @@ app_read_config_file(const char *fname) {
             "%s: Configuration file %s cannot open for reading.\n",
             __func__, fname
         );
+		if (app_cfg.cfg != NULL) {
+		    cfg_free(app_cfg.cfg);
+		}
+		if (app_cfg.bm_policy != NULL) {
+		    free(app_cfg.bm_policy);
+		}
+		if (app_cfg.qlen_fname != NULL) {
+		    free(app_cfg.qlen_fname);
+		}
         return 1;
     }
     if (!strcmp(app_cfg.bm_policy, "Equal Division")) {
@@ -181,8 +192,7 @@ app_read_config_file(const char *fname) {
             __func__, app_cfg.bm_policy
         );
     }
-    app.buff_size_pkts = (app_cfg.buffer_size > 0 ? app_cfg.buffer_size : app.buff_size_pkts);
-    app.mean_pkt_size = (app_cfg.mean_pkt_size > 0 ? app_cfg.mean_pkt_size : app.mean_pkt_size);
+    app.buff_size_bytes = (app_cfg.buffer_size_kb > 0 ? app_cfg.buffer_size_kb * 1024 : app.buff_size_bytes);
     app.dt_shift_alpha = (app_cfg.dt_shift_alpha >= 0 ? app_cfg.dt_shift_alpha : app.dt_shift_alpha);
     app.tx_rate_mbps = (app_cfg.tx_rate_mbps >= 0 ? app_cfg.tx_rate_mbps: 0);
     if (app_cfg.log_qlen) {
@@ -217,14 +227,20 @@ app_read_config_file(const char *fname) {
             }
         }
     }
+	if (app_cfg.ecn_enable && app_cfg.ecn_thresh_kb >= 0) {
+		app.ecn_enable = 1;
+		app.ecn_thresh_kb = app_cfg.ecn_thresh_kb;
+	} else {
+		app.ecn_enable = 0;
+		app.ecn_thresh_kb = 0;
+	}
     RTE_LOG(
         INFO, SWITCH,
-        "%s: bm_policy: %s, buffer_size: %upkts=%uKB, mean_pkt_size: %uB, dt_shift_alpha: %u tx_rate: %uMbps\n",
+        "%s: bm_policy: %s, buffer_size: %uB=%uKiB, dt_shift_alpha: %u tx_rate: %uMbps\n",
         __func__,
         app_cfg.bm_policy,
-        app.buff_size_pkts,
-        app.buff_size_pkts*app.mean_pkt_size/1024,
-        app.mean_pkt_size,
+        app.buff_size_bytes,
+        app.buff_size_bytes/1024,
         app.dt_shift_alpha,
         app.tx_rate_mbps
     );
@@ -244,6 +260,16 @@ app_read_config_file(const char *fname) {
 			);
 		}
     }
+	if (app.ecn_enable) {
+		RTE_LOG(
+			INFO, SWITCH,
+			"%s: ECN marking is enabled, ECN threshold=%uKiB.\n",
+			__func__, app.ecn_thresh_kb
+		);
+	}
+    cfg_free(app_cfg.cfg);
+    free(app_cfg.bm_policy);
+    free(app_cfg.qlen_fname);
     return 0;
 }
 
@@ -253,7 +279,6 @@ app_parse_args(int argc, char **argv) {
     char **argvopt;
     int option_index;
     char *prgname = argv[0];
-    char *end = NULL;
     static struct option lgopts[] = {
         {"none", 0, 0, 0},
     };
@@ -292,14 +317,6 @@ app_parse_args(int argc, char **argv) {
             if (app_parse_port_mask(optarg) < 0) {
                 return -1;
             }
-            break;
-
-        case 'b':
-            app.buff_size_pkts = strtoul(optarg, &end, 10);
-            break;
-
-        case 'm':
-            app.mean_pkt_size = strtoul(optarg, &end, 10);
             break;
 
         default:

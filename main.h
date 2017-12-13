@@ -48,8 +48,7 @@
 #define FORWARD_ENTRY 10 // # of forwarding table entries
 #define MAX_NAME_LEN 100
 #define VALID_TIME INT_MAX // valid time (in ms) for a forwarding item
-/*whether queue in bytes*/
-#define QUE_IN_BYTES 1
+#define MEAN_PKT_SIZE 800 // used for calculate ring length and # of mbuf pools
 
 typedef uint32_t (* get_threshold_callback_fn)(uint32_t port_id);
 struct app_mbuf_array {
@@ -68,13 +67,14 @@ struct app_fwd_table_item {
 };
 
 struct app_configs {
-    long buffer_size;
-    long mean_pkt_size;
+    long buffer_size_kb;
     long dt_shift_alpha;
     char *bm_policy;
     cfg_bool_t log_qlen;
 	long log_qlen_port;
     char *qlen_fname;
+	cfg_bool_t ecn_enable;
+	long ecn_thresh_kb;
     long tx_rate_mbps;
     cfg_t *cfg;
 };
@@ -97,16 +97,14 @@ struct app_params {
     uint32_t port_tx_ring_size;
 
     /* buffer size */
-    uint32_t buff_size_pkts;
-    /* buffer occupancy*/
-    uint32_t buff_occu_pkts;
-    uint32_t buff_occu_bytes;
+    uint32_t buff_size_bytes;
     /* whether log queue length and the file to put log in */
     uint32_t
 		log_qlen:1,
 		log_qlen_port:5,
 		dt_shift_alpha:14, /* parameter alpha of DT = 1 << dt_shift_alpha*/
-		unused:12;
+		ecn_enable:1,
+		unused:11;
     uint64_t qlen_start_cycle;
 
     FILE* qlen_file;
@@ -115,15 +113,17 @@ struct app_params {
     get_threshold_callback_fn get_threshold;
 
 
-    /*
-     * mean packet size in bytes
-     * used for get the buffer size in bytes
-     */
-    uint32_t mean_pkt_size;
+    /* buffer occupancy*/
+	uint32_t buff_bytes_in;
+	uint32_t buff_bytes_out;
+    uint32_t buff_pkts_in;
+    uint32_t buff_pkts_out;
     /* queue length*/
     /*rte_rwlock_t lock_qlen[APP_MAX_PORTS];*/
-    uint32_t qlen_bytes[APP_MAX_PORTS];
-    uint32_t qlen_pkts[APP_MAX_PORTS];
+    uint32_t qlen_bytes_in[APP_MAX_PORTS];
+    uint32_t qlen_bytes_out[APP_MAX_PORTS];
+    uint32_t qlen_pkts_in[APP_MAX_PORTS];
+    uint32_t qlen_pkts_out[APP_MAX_PORTS];
     /* Rings */
     struct rte_ring *rings_rx[APP_MAX_PORTS];
     struct rte_ring *rings_tx[APP_MAX_PORTS];
@@ -157,6 +157,7 @@ struct app_params {
     struct rte_hash* l2_hash;
     uint64_t fwd_item_valid_time; /* valide time of forward item, in CPU cycles */
 
+	uint32_t ecn_thresh_kb;
     uint32_t tx_rate_mbps; /* the rate (in Mbps) from tx ring to tx queue */
 } __rte_cache_aligned;
 
@@ -187,13 +188,15 @@ int app_l2_learning(const struct ether_addr* srcaddr, uint8_t port);
  */
 int app_l2_lookup(const struct ether_addr* addr);
 
+uint32_t get_qlen_bytes(uint32_t port_id);
+uint32_t get_buff_occu_bytes(void);
 /*
  * Wrapper for enqueue
  * Returns:
  *  0: succeed, < 0: packet dropped
  *  -1: queue length > threshold, -2: buffer overflow, -3: other unknown reason
 */
-uint32_t packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt);
+int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt);
 
 /*
  * Get port qlen threshold for a port
