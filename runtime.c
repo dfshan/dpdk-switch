@@ -206,8 +206,9 @@ app_main_loop_tx_each_port(uint32_t port_id) {
     uint64_t current_time = rte_get_tsc_cycles();
     uint64_t token;
     uint64_t prev_time;
+    uint64_t tx_rate_bitps = (uint64_t) app.tx_rate_mbps * 1e6 / 8;
 
-    RTE_LOG(INFO, SWITCH, "Core %u is doing TX for port %u\n", rte_lcore_id(), port_id);
+    RTE_LOG(INFO, SWITCH, "Core %u is doing TX for port %u\n", rte_lcore_id(), app.ports[port_id]);
 
     app.cpu_freq[rte_lcore_id()] = rte_get_tsc_hz();
     token = app.bucket_size;
@@ -221,8 +222,7 @@ app_main_loop_tx_each_port(uint32_t port_id) {
         current_time = rte_get_tsc_cycles();
         if (app.tx_rate_mbps > 0) {
             // tbf: generate tokens
-            token += (uint64_t) app.tx_rate_mbps * 1e6 / app.cpu_freq[app.core_tx[i]] / 8;
-            token *= (current_time - prev_time);
+            token += tx_rate_bitps * (current_time - prev_time) / app.cpu_freq[app.core_tx[i]];
             token = MIN(token, (app.bucket_size<<1));
             prev_time = current_time;
             if (token < app.bucket_size) {

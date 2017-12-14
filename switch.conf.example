@@ -10,6 +10,6 @@ ecn_enable = false
 # ecn threshold in KB
 ecn_threshold = 32
 # rate limit
-tx_rate_mbps = 90000
+tx_rate_mbps = 9999
 # bucket size in bytes
-bucket_size = 3000
+bucket_size = 5000

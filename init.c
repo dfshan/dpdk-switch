@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <inttypes.h>
 #include <sys/types.h>
 #include <string.h>
@@ -319,7 +320,7 @@ app_init_ports(void) {
         if (ret < 0)
             rte_panic("Cannot start port %u (%d)\n", port, ret);
     }
-
+    sleep(1);
     app_ports_check_link();
 }
 
