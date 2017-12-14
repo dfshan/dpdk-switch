@@ -394,26 +394,27 @@ uint32_t get_buff_occu_bytes(void) {
 int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     int ret = 0, mark_pkt = 0, mark_ret;
     uint32_t qlen_bytes = get_qlen_bytes(dst_port);
-    /*Check whether buffer overflows after enqueue*/
-    uint32_t threshold = app.get_threshold(dst_port);
+    uint32_t threshold = 0;
     uint32_t qlen_enque = qlen_bytes + pkt->pkt_len;
-    uint32_t buff_occu_bytes = get_buff_occu_bytes();
+    uint32_t buff_occu_bytes = 0;
     mark_pkt = (app.ecn_enable && qlen_bytes >= (app.ecn_thresh_kb<<10));
-    if (qlen_enque > threshold) {
-        ret = -1;
-    }
-    else if (
-        buff_occu_bytes + pkt->pkt_len > app.buff_size_bytes
-    ) {
+    /*Check whether buffer overflows after enqueue*/
+    if (app.shared_memory) {
+        buff_occu_bytes = get_buff_occu_bytes();
+        threshold = app.get_threshold(dst_port);
+        if (qlen_enque > threshold) {
+            ret = -1;
+        } else if (buff_occu_bytes + pkt->pkt_len > app.buff_size_bytes) {
+            ret = -2;
+        }
+    } else if (qlen_enque > app.buff_size_per_port_bytes) {
         ret = -2;
-    } else {
-        ret = 0;
+    }
+    if (ret == 0 && mark_pkt) {
         /* do ecn marking */
-        if (mark_pkt) {
-            mark_ret = mark_packet_with_ecn(pkt);
-            if (mark_ret < 0) {
-                ret = -3;
-            }
+        mark_ret = mark_packet_with_ecn(pkt);
+        if (mark_ret < 0) {
+            ret = -3;
         }
         /* end */
     }

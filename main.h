@@ -72,6 +72,7 @@ struct app_fwd_table_item {
 };
 
 struct app_configs {
+    cfg_bool_t shared_memory;
     long buffer_size_kb;
     long dt_shift_alpha;
     char *bm_policy;
@@ -81,6 +82,7 @@ struct app_configs {
     cfg_bool_t ecn_enable;
     long ecn_thresh_kb;
     long tx_rate_mbps;
+    long bucket_size; /* bucket size (in bytes) of TBF algorithm */
     cfg_t *cfg;
 };
 
@@ -103,13 +105,16 @@ struct app_params {
 
     /* buffer size */
     uint32_t buff_size_bytes;
-    /* whether log queue length and the file to put log in */
+    uint32_t buff_size_per_port_bytes;
     uint32_t
+        shared_memory:1, /* whether enable shared memory */
+        /* whether log queue length and the file to put log in */
         log_qlen:1,
+        /* the port to log queue length */
         log_qlen_port:5,
         dt_shift_alpha:14, /* parameter alpha of DT = 1 << dt_shift_alpha*/
         ecn_enable:1,
-        unused:11;
+        unused:10;
     uint64_t qlen_start_cycle;
 
     FILE* qlen_file;

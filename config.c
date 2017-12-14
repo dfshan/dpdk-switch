@@ -139,6 +139,7 @@ app_parse_port_mask(const char *arg) {
 static int
 app_read_config_file(const char *fname) {
     struct app_configs app_cfg = {
+        .shared_memory = cfg_false,
         .buffer_size_kb = -1,
         .dt_shift_alpha = -1,
         .bm_policy = NULL,
@@ -146,11 +147,13 @@ app_read_config_file(const char *fname) {
         .log_qlen = cfg_false,
         .log_qlen_port = -1,
         .ecn_enable = cfg_false,
-        .ecn_thresh_kb = 0,
+        .ecn_thresh_kb = -1,
         .tx_rate_mbps = -1,
+        .bucket_size = -1,
         .cfg = NULL
     };
     cfg_opt_t opts[] = {
+        CFG_SIMPLE_BOOL("shared_memory", &app_cfg.shared_memory),
         CFG_SIMPLE_INT("buffer_size", &app_cfg.buffer_size_kb),
         CFG_SIMPLE_STR("buffer_management_policy", &app_cfg.bm_policy),
         CFG_SIMPLE_INT("dt_shift_alpha", &app_cfg.dt_shift_alpha),
@@ -160,6 +163,7 @@ app_read_config_file(const char *fname) {
         CFG_SIMPLE_BOOL("ecn_enable", &app_cfg.ecn_enable),
         CFG_SIMPLE_INT("ecn_threshold", &app_cfg.ecn_thresh_kb),
         CFG_SIMPLE_INT("tx_rate_mbps", &app_cfg.tx_rate_mbps),
+        CFG_SIMPLE_INT("bucket_size", &app_cfg.bucket_size),
         CFG_END()
     };
     app_cfg.cfg = cfg_init(opts, 0);
@@ -180,21 +184,51 @@ app_read_config_file(const char *fname) {
         }
         return 1;
     }
-    if (!strcmp(app_cfg.bm_policy, "Equal Division")) {
-        app.get_threshold = qlen_threshold_equal_division;
-    } else if (!strcmp(app_cfg.bm_policy, "Dynamic Threshold")
-            || !strcmp(app_cfg.bm_policy, "DT")) {
-        app.get_threshold = qlen_threshold_dt;
-    } else {
+    app.buff_size_bytes = (app_cfg.buffer_size_kb > 0 ? (app_cfg.buffer_size_kb<<10) : app.buff_size_bytes);
+    if (app_cfg.shared_memory) {
+        app.shared_memory = 1;
+        if (!strcmp(app_cfg.bm_policy, "Equal Division")) {
+            app.get_threshold = qlen_threshold_equal_division;
+            RTE_LOG(
+                INFO, SWITCH,
+                "%s: shared memory enabled, bm_policy: %s, buffer_size: %uB=%uKiB\n",
+                __func__,
+                app_cfg.bm_policy,
+                app.buff_size_bytes,
+                app.buff_size_bytes/1024
+            );
+        } else if (!strcmp(app_cfg.bm_policy, "Dynamic Threshold")
+                || !strcmp(app_cfg.bm_policy, "DT")) {
+            RTE_LOG(
+                INFO, SWITCH,
+                "%s: shared memory enabled, bm_policy: Dynamic Threshold,\
+                buffer_size: %uB=%uKiB, dt_shift_alpha: %u\n",
+                __func__,
+                app.buff_size_bytes,
+                app.buff_size_bytes/1024,
+                app.dt_shift_alpha
+            );
+            app.get_threshold = qlen_threshold_dt;
+            app.dt_shift_alpha = (app_cfg.dt_shift_alpha >= 0 ? app_cfg.dt_shift_alpha : app.dt_shift_alpha);
+        } else {
+            RTE_LOG(
+                ERR, SWITCH,
+                "%s: Unsupported buffer management policy: %s, disable shared memory.\n",
+                __func__, app_cfg.bm_policy
+            );
+            app.shared_memory = 0;
+        }
+    }
+    if (!app.shared_memory) {
+        app.buff_size_per_port_bytes = app.buff_size_bytes / app.n_ports;
         RTE_LOG(
-            ERR, SWITCH,
-            "%s: Unsupported buffer management policy: %s\n",
-            __func__, app_cfg.bm_policy
+            INFO, SWITCH,
+            "%s: shared memory disabled, each port has %uB/%uKiB buffer.\n",
+            __func__,
+            app.buff_size_per_port_bytes,
+            app.buff_size_per_port_bytes / 1024
         );
     }
-    app.buff_size_bytes = (app_cfg.buffer_size_kb > 0 ? app_cfg.buffer_size_kb * 1024 : app.buff_size_bytes);
-    app.dt_shift_alpha = (app_cfg.dt_shift_alpha >= 0 ? app_cfg.dt_shift_alpha : app.dt_shift_alpha);
-    app.tx_rate_mbps = (app_cfg.tx_rate_mbps >= 0 ? app_cfg.tx_rate_mbps: 0);
     if (app_cfg.log_qlen) {
         if (app_cfg.qlen_fname == NULL) {
             RTE_LOG(
@@ -234,15 +268,19 @@ app_read_config_file(const char *fname) {
         app.ecn_enable = 0;
         app.ecn_thresh_kb = 0;
     }
+    app.tx_rate_mbps = (app_cfg.tx_rate_mbps >= 0 ? app_cfg.tx_rate_mbps: 0);
+    app.bucket_size = (app_cfg.bucket_size > ETHER_MIN_LEN ? app_cfg.bucket_size: app.bucket_size);
+    if (app_cfg.bucket_size < ETHER_MAX_LEN) {
+        RTE_LOG(
+            WARNING, SWITCH,
+            "%s: TBF bucket size (given %ldB) is smaller than MTU(%uB)\n",
+            __func__, app_cfg.bucket_size, ETHER_MAX_LEN
+        );
+    }
     RTE_LOG(
         INFO, SWITCH,
-        "%s: bm_policy: %s, buffer_size: %uB=%uKiB, dt_shift_alpha: %u tx_rate: %uMbps\n",
-        __func__,
-        app_cfg.bm_policy,
-        app.buff_size_bytes,
-        app.buff_size_bytes/1024,
-        app.dt_shift_alpha,
-        app.tx_rate_mbps
+        "%s: tx_rate: %uMbps, tbf bucket size=%uB\n",
+        __func__, app.tx_rate_mbps, app.bucket_size
     );
     if (app.log_qlen) {
         if (app.log_qlen_port >= 0 && app.log_qlen_port < app.n_ports) {

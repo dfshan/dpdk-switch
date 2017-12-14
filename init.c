@@ -83,6 +83,7 @@ struct app_params app = {
     .port_tx_ring_size = 32,
 
     /* switch buffer */
+    .shared_memory = 0,
     .buff_size_bytes = 256,
     .buff_bytes_in = 0,
     .buff_pkts_in = 0,
