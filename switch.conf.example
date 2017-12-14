@@ -1,12 +1,15 @@
+# buffer size (in total) in KiB
+buffer_size = 5120
+shared_memory=false
 buffer_management_policy = "Equal Division"
-# buffer size in KiB
-buffer_size = 512
 dt_shift_alpha = 0
-log_queue_length = true
+log_queue_length = false
 log_queue_length_port = 0
 queue_length_file = "/dev/shm/dpdk-qlen.log"
-ecn_enable = true
+ecn_enable = false
 # ecn threshold in KB
 ecn_threshold = 32
 # rate limit
-tx_rate_mbps = 999
+tx_rate_mbps = 90000
+# bucket size in bytes
+bucket_size = 3000
