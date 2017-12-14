@@ -76,10 +76,10 @@ struct app_configs {
     long dt_shift_alpha;
     char *bm_policy;
     cfg_bool_t log_qlen;
-	long log_qlen_port;
+    long log_qlen_port;
     char *qlen_fname;
-	cfg_bool_t ecn_enable;
-	long ecn_thresh_kb;
+    cfg_bool_t ecn_enable;
+    long ecn_thresh_kb;
     long tx_rate_mbps;
     cfg_t *cfg;
 };
@@ -88,8 +88,8 @@ extern struct app_configs app_cfg;
 
 extern volatile bool force_quit;
 struct app_params {
-	uint64_t cpu_freq[RTE_MAX_LCORE];
-	uint64_t start_cycle;
+    uint64_t cpu_freq[RTE_MAX_LCORE];
+    uint64_t start_cycle;
     /* CPU cores */
     uint32_t core_rx;
     uint32_t core_worker;
@@ -105,11 +105,11 @@ struct app_params {
     uint32_t buff_size_bytes;
     /* whether log queue length and the file to put log in */
     uint32_t
-		log_qlen:1,
-		log_qlen_port:5,
-		dt_shift_alpha:14, /* parameter alpha of DT = 1 << dt_shift_alpha*/
-		ecn_enable:1,
-		unused:11;
+        log_qlen:1,
+        log_qlen_port:5,
+        dt_shift_alpha:14, /* parameter alpha of DT = 1 << dt_shift_alpha*/
+        ecn_enable:1,
+        unused:11;
     uint64_t qlen_start_cycle;
 
     FILE* qlen_file;
@@ -119,8 +119,8 @@ struct app_params {
 
 
     /* buffer occupancy*/
-	uint32_t buff_bytes_in;
-	uint32_t buff_bytes_out;
+    uint32_t buff_bytes_in;
+    uint32_t buff_bytes_out;
     uint32_t buff_pkts_in;
     uint32_t buff_pkts_out;
     /* queue length*/
@@ -162,9 +162,9 @@ struct app_params {
     struct rte_hash* l2_hash;
     uint64_t fwd_item_valid_time; /* valide time of forward item, in CPU cycles */
 
-	uint32_t ecn_thresh_kb;
+    uint32_t ecn_thresh_kb;
     uint32_t tx_rate_mbps; /* the rate (in Mbps) from tx ring to tx queue */
-	uint32_t bucket_size; /* bucket size (in bytes) of TBF algorithm */
+    uint32_t bucket_size; /* bucket size (in bytes) of TBF algorithm */
 } __rte_cache_aligned;
 
 extern struct app_params app;

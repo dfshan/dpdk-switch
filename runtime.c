@@ -200,17 +200,17 @@ app_main_loop_worker(void) {
 
 void
 app_main_loop_tx_each_port(uint32_t port_id) {
-	uint32_t i = port_id;
+    uint32_t i = port_id;
     struct rte_mbuf* pkt;
     /* next time allowed to transmit packets */
-	uint64_t current_time = rte_get_tsc_cycles();
-	uint64_t token;
-	uint64_t prev_time;
+    uint64_t current_time = rte_get_tsc_cycles();
+    uint64_t token;
+    uint64_t prev_time;
 
     RTE_LOG(INFO, SWITCH, "Core %u is doing TX for port %u\n", rte_lcore_id(), port_id);
 
     app.cpu_freq[rte_lcore_id()] = rte_get_tsc_hz();
-	token = app.bucket_size;
+    token = app.bucket_size;
     prev_time = current_time;
     while(!force_quit) {
         uint16_t n_mbufs, n_pkts;
@@ -218,16 +218,16 @@ app_main_loop_tx_each_port(uint32_t port_id) {
 
         n_mbufs = app.mbuf_tx[i].n_mbufs;
 
-		current_time = rte_get_tsc_cycles();
+        current_time = rte_get_tsc_cycles();
         if (app.tx_rate_mbps > 0) {
-			// tbf: generate tokens
-			token += (uint64_t) app.tx_rate_mbps * 1e6 / app.cpu_freq[app.core_tx[i]] / 8;
-			token *= (current_time - prev_time);
-			token = MIN(token, (app.bucket_size<<1));
-			prev_time = current_time;
-			if (token < app.bucket_size) {
-				continue;
-			}
+            // tbf: generate tokens
+            token += (uint64_t) app.tx_rate_mbps * 1e6 / app.cpu_freq[app.core_tx[i]] / 8;
+            token *= (current_time - prev_time);
+            token = MIN(token, (app.bucket_size<<1));
+            prev_time = current_time;
+            if (token < app.bucket_size) {
+                continue;
+            }
         }
         ret = rte_ring_sc_dequeue(
             app.rings_tx[i],
@@ -238,11 +238,11 @@ app_main_loop_tx_each_port(uint32_t port_id) {
         }
 
         pkt = app.mbuf_tx[i].array[n_mbufs];
-		app.qlen_bytes_out[i] += pkt->pkt_len;
-		app.qlen_pkts_out[i] ++;
+        app.qlen_bytes_out[i] += pkt->pkt_len;
+        app.qlen_pkts_out[i] ++;
         if (app.tx_rate_mbps > 0) {
-			token -= pkt->pkt_len;
-		}
+            token -= pkt->pkt_len;
+        }
 
         n_mbufs ++;
 
@@ -283,15 +283,15 @@ app_main_loop_tx(void) {
     uint32_t i;
     struct rte_mbuf* pkt;
     /* next time allowed to transmit packets */
-	uint64_t current_time = rte_get_tsc_cycles();
-	uint64_t token[APP_MAX_PORTS];
-	uint64_t prev_time[APP_MAX_PORTS];
+    uint64_t current_time = rte_get_tsc_cycles();
+    uint64_t token[APP_MAX_PORTS];
+    uint64_t prev_time[APP_MAX_PORTS];
 
     RTE_LOG(INFO, SWITCH, "Core %u is doing TX\n", rte_lcore_id());
 
     app.cpu_freq[rte_lcore_id()] = rte_get_tsc_hz();
     for (i = 0; i < app.n_ports; i++) {
-		token[i] = app.bucket_size;
+        token[i] = app.bucket_size;
         prev_time[i] = current_time;
     }
     for (i = 0; !force_quit; i = ((i + 1) & (app.n_ports - 1))) {
@@ -300,15 +300,15 @@ app_main_loop_tx(void) {
 
         n_mbufs = app.mbuf_tx[i].n_mbufs;
 
-		current_time = rte_get_tsc_cycles();
+        current_time = rte_get_tsc_cycles();
         if (app.tx_rate_mbps > 0) {
-			// tbf: generate tokens
-			token[i] += (uint64_t) app.tx_rate_mbps * (current_time - prev_time[i]) * 1e6 / app.cpu_freq[app.core_tx[i]] / 8;
-			token[i] = MIN(token[i], (app.bucket_size<<1));
-			prev_time[i] = current_time;
-			if (token[i] < app.bucket_size) {
-				continue;
-			}
+            // tbf: generate tokens
+            token[i] += (uint64_t) app.tx_rate_mbps * (current_time - prev_time[i]) * 1e6 / app.cpu_freq[app.core_tx[i]] / 8;
+            token[i] = MIN(token[i], (app.bucket_size<<1));
+            prev_time[i] = current_time;
+            if (token[i] < app.bucket_size) {
+                continue;
+            }
         }
         ret = rte_ring_sc_dequeue(
             app.rings_tx[i],
@@ -319,11 +319,11 @@ app_main_loop_tx(void) {
         }
 
         pkt = app.mbuf_tx[i].array[n_mbufs];
-		app.qlen_bytes_out[i] += pkt->pkt_len;
-		app.qlen_pkts_out[i] ++;
+        app.qlen_bytes_out[i] += pkt->pkt_len;
+        app.qlen_pkts_out[i] ++;
         if (app.tx_rate_mbps > 0) {
-			token[i] -= pkt->pkt_len;
-		}
+            token[i] -= pkt->pkt_len;
+        }
 
         n_mbufs ++;
 
@@ -360,45 +360,45 @@ app_main_loop_tx(void) {
 }
 
 static int mark_packet_with_ecn(struct rte_mbuf *pkt) {
-	struct ipv4_hdr *iphdr;
-	uint16_t cksum;
-	if (RTE_ETH_IS_IPV4_HDR(pkt->packet_type)) {
-		iphdr = rte_pktmbuf_mtod_offset(pkt, struct ipv4_hdr *, sizeof(struct ether_hdr));
-		if ((iphdr->type_of_service & 0x03) != 0) {
-			iphdr->type_of_service |= 0x3;
-			iphdr->hdr_checksum = 0;
-			cksum = rte_ipv4_cksum(iphdr);
-			iphdr->hdr_checksum = cksum;
-		} else {
-			return -2;
-		}
-		return 0;
-	} else {
-		return -1;
-	}
+    struct ipv4_hdr *iphdr;
+    uint16_t cksum;
+    if (RTE_ETH_IS_IPV4_HDR(pkt->packet_type)) {
+        iphdr = rte_pktmbuf_mtod_offset(pkt, struct ipv4_hdr *, sizeof(struct ether_hdr));
+        if ((iphdr->type_of_service & 0x03) != 0) {
+            iphdr->type_of_service |= 0x3;
+            iphdr->hdr_checksum = 0;
+            cksum = rte_ipv4_cksum(iphdr);
+            iphdr->hdr_checksum = cksum;
+        } else {
+            return -2;
+        }
+        return 0;
+    } else {
+        return -1;
+    }
 }
 
 uint32_t get_qlen_bytes(uint32_t port_id) {
-	return app.qlen_bytes_in[port_id] - app.qlen_bytes_out[port_id];
+    return app.qlen_bytes_in[port_id] - app.qlen_bytes_out[port_id];
 }
 
 uint32_t get_buff_occu_bytes(void) {
-	uint32_t i, result = 0;
-	for (i = 0; i < app.n_ports; i++) {
-		result += (app.qlen_bytes_in[i] - app.qlen_bytes_out[i]);
-	}
-	return result;
-	//return app.buff_bytes_in - app.buff_bytes_out;
+    uint32_t i, result = 0;
+    for (i = 0; i < app.n_ports; i++) {
+        result += (app.qlen_bytes_in[i] - app.qlen_bytes_out[i]);
+    }
+    return result;
+    //return app.buff_bytes_in - app.buff_bytes_out;
 }
 
 int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     int ret = 0, mark_pkt = 0, mark_ret;
-	uint32_t qlen_bytes = get_qlen_bytes(dst_port);
+    uint32_t qlen_bytes = get_qlen_bytes(dst_port);
     /*Check whether buffer overflows after enqueue*/
     uint32_t threshold = app.get_threshold(dst_port);
     uint32_t qlen_enque = qlen_bytes + pkt->pkt_len;
-	uint32_t buff_occu_bytes = get_buff_occu_bytes();
-	mark_pkt = (app.ecn_enable && qlen_bytes >= (app.ecn_thresh_kb<<10));
+    uint32_t buff_occu_bytes = get_buff_occu_bytes();
+    mark_pkt = (app.ecn_enable && qlen_bytes >= (app.ecn_thresh_kb<<10));
     if (qlen_enque > threshold) {
         ret = -1;
     }
@@ -408,14 +408,14 @@ int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
         ret = -2;
     } else {
         ret = 0;
-		/* do ecn marking */
-		if (mark_pkt) {
-			mark_ret = mark_packet_with_ecn(pkt);
-			if (mark_ret < 0) {
-				ret = -3;
-			}
-		}
-		/* end */
+        /* do ecn marking */
+        if (mark_pkt) {
+            mark_ret = mark_packet_with_ecn(pkt);
+            if (mark_ret < 0) {
+                ret = -3;
+            }
+        }
+        /* end */
     }
     if (ret == 0) {
         int enque_ret = rte_ring_sp_enqueue(
@@ -429,23 +429,23 @@ int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
                 __func__, app.ports[dst_port]
             );
         }
-		app.qlen_bytes_in[dst_port] += pkt->pkt_len;
-		app.qlen_pkts_in[dst_port] ++;
-		/*app.buff_bytes_in += pkt->pkt_len;
-		app.buff_pkts_in ++;*/
+        app.qlen_bytes_in[dst_port] += pkt->pkt_len;
+        app.qlen_pkts_in[dst_port] ++;
+        /*app.buff_bytes_in += pkt->pkt_len;
+        app.buff_pkts_in ++;*/
         if (
-			app.log_qlen && pkt->pkt_len >= MEAN_PKT_SIZE &&
-			(app.log_qlen_port >= app.n_ports || app.log_qlen_port == dst_port)
-		) {
-			if (app.qlen_start_cycle == 0) {
-				app.qlen_start_cycle = rte_get_tsc_cycles();
-			}
+            app.log_qlen && pkt->pkt_len >= MEAN_PKT_SIZE &&
+            (app.log_qlen_port >= app.n_ports || app.log_qlen_port == dst_port)
+        ) {
+            if (app.qlen_start_cycle == 0) {
+                app.qlen_start_cycle = rte_get_tsc_cycles();
+            }
             fprintf(
                 app.qlen_file,
-				"%-12.6f %-8u %-8u %-8u\n",
-				(float) (rte_get_tsc_cycles() - app.qlen_start_cycle) / app.cpu_freq[rte_lcore_id()],
+                "%-12.6f %-8u %-8u %-8u\n",
+                (float) (rte_get_tsc_cycles() - app.qlen_start_cycle) / app.cpu_freq[rte_lcore_id()],
                 app.ports[dst_port],
-				qlen_bytes,
+                qlen_bytes,
                 buff_occu_bytes
             );
         }

@@ -31,14 +31,14 @@ Danfeng Shan, Wanchun Jiang, and Fengyuan Ren, "Analyzing and Enhancing Dynamic 
 
 Bibtex:
 
-	@ARTICLE{7859368,
-		author={D. Shan and W. Jiang and F. Ren},
-		journal={IEEE Transactions on Parallel and Distributed Systems},
-		title={Analyzing and Enhancing Dynamic Threshold Policy of Data Center Switches},
-		year={2017},
-		volume={PP},
-		number={99},
-		pages={1-1},
-		doi={10.1109/TPDS.2017.2671429},
-		ISSN={1045-9219},
-		month={},}
+    @ARTICLE{7859368,
+        author={D. Shan and W. Jiang and F. Ren},
+        journal={IEEE Transactions on Parallel and Distributed Systems},
+        title={Analyzing and Enhancing Dynamic Threshold Policy of Data Center Switches},
+        year={2017},
+        volume={PP},
+        number={99},
+        pages={1-1},
+        doi={10.1109/TPDS.2017.2671429},
+        ISSN={1045-9219},
+        month={},}

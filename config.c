@@ -138,18 +138,18 @@ app_parse_port_mask(const char *arg) {
 
 static int
 app_read_config_file(const char *fname) {
-	struct app_configs app_cfg = {
-	    .buffer_size_kb = -1,
-	    .dt_shift_alpha = -1,
-	    .bm_policy = NULL,
-	    .qlen_fname = NULL,
-	    .log_qlen = cfg_false,
-		.log_qlen_port = -1,
-		.ecn_enable = cfg_false,
-		.ecn_thresh_kb = 0,
-	    .tx_rate_mbps = -1,
-	    .cfg = NULL
-	};
+    struct app_configs app_cfg = {
+        .buffer_size_kb = -1,
+        .dt_shift_alpha = -1,
+        .bm_policy = NULL,
+        .qlen_fname = NULL,
+        .log_qlen = cfg_false,
+        .log_qlen_port = -1,
+        .ecn_enable = cfg_false,
+        .ecn_thresh_kb = 0,
+        .tx_rate_mbps = -1,
+        .cfg = NULL
+    };
     cfg_opt_t opts[] = {
         CFG_SIMPLE_INT("buffer_size", &app_cfg.buffer_size_kb),
         CFG_SIMPLE_STR("buffer_management_policy", &app_cfg.bm_policy),
@@ -169,15 +169,15 @@ app_read_config_file(const char *fname) {
             "%s: Configuration file %s cannot open for reading.\n",
             __func__, fname
         );
-		if (app_cfg.cfg != NULL) {
-		    cfg_free(app_cfg.cfg);
-		}
-		if (app_cfg.bm_policy != NULL) {
-		    free(app_cfg.bm_policy);
-		}
-		if (app_cfg.qlen_fname != NULL) {
-		    free(app_cfg.qlen_fname);
-		}
+        if (app_cfg.cfg != NULL) {
+            cfg_free(app_cfg.cfg);
+        }
+        if (app_cfg.bm_policy != NULL) {
+            free(app_cfg.bm_policy);
+        }
+        if (app_cfg.qlen_fname != NULL) {
+            free(app_cfg.qlen_fname);
+        }
         return 1;
     }
     if (!strcmp(app_cfg.bm_policy, "Equal Division")) {
@@ -213,27 +213,27 @@ app_read_config_file(const char *fname) {
                 );
             } else {
                 app.log_qlen = 1;
-				if (app_cfg.log_qlen_port >= 0 && app_cfg.log_qlen_port < app.n_ports) {
-					app.log_qlen_port = app_cfg.log_qlen_port;
-				} else {
-					app.log_qlen_port = app.n_ports;
-					RTE_LOG(
-						WARNING, SWITCH,
-						"%s: The log queue length port (%ld) is invalid. \
-						Queue length logging is enabled for all ports.",
-						__func__, app_cfg.log_qlen_port
-					);
-				}
+                if (app_cfg.log_qlen_port >= 0 && app_cfg.log_qlen_port < app.n_ports) {
+                    app.log_qlen_port = app_cfg.log_qlen_port;
+                } else {
+                    app.log_qlen_port = app.n_ports;
+                    RTE_LOG(
+                        WARNING, SWITCH,
+                        "%s: The log queue length port (%ld) is invalid. \
+                        Queue length logging is enabled for all ports.",
+                        __func__, app_cfg.log_qlen_port
+                    );
+                }
             }
         }
     }
-	if (app_cfg.ecn_enable && app_cfg.ecn_thresh_kb >= 0) {
-		app.ecn_enable = 1;
-		app.ecn_thresh_kb = app_cfg.ecn_thresh_kb;
-	} else {
-		app.ecn_enable = 0;
-		app.ecn_thresh_kb = 0;
-	}
+    if (app_cfg.ecn_enable && app_cfg.ecn_thresh_kb >= 0) {
+        app.ecn_enable = 1;
+        app.ecn_thresh_kb = app_cfg.ecn_thresh_kb;
+    } else {
+        app.ecn_enable = 0;
+        app.ecn_thresh_kb = 0;
+    }
     RTE_LOG(
         INFO, SWITCH,
         "%s: bm_policy: %s, buffer_size: %uB=%uKiB, dt_shift_alpha: %u tx_rate: %uMbps\n",
@@ -245,28 +245,28 @@ app_read_config_file(const char *fname) {
         app.tx_rate_mbps
     );
     if (app.log_qlen) {
-		if (app.log_qlen_port >= 0 && app.log_qlen_port < app.n_ports) {
-			RTE_LOG(
-				INFO, SWITCH,
-				"%s: Queue length logging is enabled for port %u. Logging is dumped into file %s\n",
-				__func__, app.log_qlen_port, app_cfg.qlen_fname
-			);
-		} else {
-			RTE_LOG(
-				WARNING, SWITCH,
-				"%s: Queue length logging is enabled for all ports. \
-				Logging is dumped into file %s\n",
-				__func__, app_cfg.qlen_fname
-			);
-		}
+        if (app.log_qlen_port >= 0 && app.log_qlen_port < app.n_ports) {
+            RTE_LOG(
+                INFO, SWITCH,
+                "%s: Queue length logging is enabled for port %u. Logging is dumped into file %s\n",
+                __func__, app.log_qlen_port, app_cfg.qlen_fname
+            );
+        } else {
+            RTE_LOG(
+                WARNING, SWITCH,
+                "%s: Queue length logging is enabled for all ports. \
+                Logging is dumped into file %s\n",
+                __func__, app_cfg.qlen_fname
+            );
+        }
     }
-	if (app.ecn_enable) {
-		RTE_LOG(
-			INFO, SWITCH,
-			"%s: ECN marking is enabled, ECN threshold=%uKiB.\n",
-			__func__, app.ecn_thresh_kb
-		);
-	}
+    if (app.ecn_enable) {
+        RTE_LOG(
+            INFO, SWITCH,
+            "%s: ECN marking is enabled, ECN threshold=%uKiB.\n",
+            __func__, app.ecn_thresh_kb
+        );
+    }
     cfg_free(app_cfg.cfg);
     free(app_cfg.bm_policy);
     free(app_cfg.qlen_fname);
@@ -318,9 +318,9 @@ app_parse_args(int argc, char **argv) {
 
     app.core_rx = lcores[0];
     app.core_worker = lcores[1];
-	for (i = 0; i < app.n_ports; i++) {
-		app.core_tx[i] = lcores[2+i];
-	}
+    for (i = 0; i < app.n_ports; i++) {
+        app.core_tx[i] = lcores[2+i];
+    }
     if (optind >= 0)
         argv[optind - 1] = prgname;
 
