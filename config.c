@@ -282,35 +282,12 @@ app_parse_args(int argc, char **argv) {
     static struct option lgopts[] = {
         {"none", 0, 0, 0},
     };
-    uint32_t lcores[3], n_lcores, lcore_id;
-    /* EAL args */
-    n_lcores = 0;
-    for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-        if (rte_lcore_is_enabled(lcore_id) == 0)
-            continue;
-
-        if (n_lcores >= 3) {
-            RTE_LOG(ERR, SWITCH, "Number of cores must be 3\n");
-            return -1;
-        }
-
-        lcores[n_lcores] = lcore_id;
-        n_lcores++;
-    }
-
-    if (n_lcores != 3) {
-        RTE_LOG(ERR, SWITCH, "# of cores must be 3\n");
-        return -1;
-    }
-
-    app.core_rx = lcores[0];
-    app.core_worker = lcores[1];
-    app.core_tx = lcores[2];
+    uint32_t lcores[RTE_MAX_LCORE], n_lcores, lcore_id, i;
 
     /* Non-EAL args */
     argvopt = argv;
 
-    while ((opt = getopt_long(argc, argvopt, "p:b:m:",
+    while ((opt = getopt_long(argc, argvopt, "p:",
             lgopts, &option_index)) != EOF) {
         switch (opt) {
         case 'p':
@@ -324,6 +301,26 @@ app_parse_args(int argc, char **argv) {
         }
     }
 
+    /* EAL args */
+    n_lcores = 0;
+    for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+        if (rte_lcore_is_enabled(lcore_id) == 0)
+            continue;
+
+        lcores[n_lcores] = lcore_id;
+        n_lcores++;
+    }
+
+    if (n_lcores != 2+app.n_ports) {
+        RTE_LOG(ERR, SWITCH, "# of cores must be %d\n", 2+app.n_ports);
+        return -1;
+    }
+
+    app.core_rx = lcores[0];
+    app.core_worker = lcores[1];
+	for (i = 0; i < app.n_ports; i++) {
+		app.core_tx[i] = lcores[2+i];
+	}
     if (optind >= 0)
         argv[optind - 1] = prgname;
 

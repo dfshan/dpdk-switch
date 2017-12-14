@@ -165,7 +165,7 @@ main(int argc, char **argv) {
 
 int
 app_lcore_main_loop(__attribute__((unused)) void *arg) {
-    unsigned lcore;
+    unsigned lcore, i;
 
     lcore = rte_lcore_id();
 
@@ -179,10 +179,12 @@ app_lcore_main_loop(__attribute__((unused)) void *arg) {
         return 0;
     }
 
-    if (lcore == app.core_tx) {
-        app_main_loop_tx();
-        return 0;
-    }
+	for (i = 0; i < app.n_ports; i++) {
+		if (lcore == app.core_tx[i]) {
+		    app_main_loop_tx_each_port(i);
+		    return 0;
+		}
+	}
 
     return 0;
 }

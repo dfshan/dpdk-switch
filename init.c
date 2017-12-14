@@ -120,6 +120,7 @@ struct app_params app = {
 	.ecn_enable = 0,
 	.ecn_thresh_kb = 0,
     .tx_rate_mbps = 0,
+	.bucket_size = 3200,
 };
 
 static struct rte_eth_conf port_conf = {
@@ -158,8 +159,8 @@ static struct rte_eth_txconf tx_conf = {
         .hthresh = 0,
         .wthresh = 0,
     },
-    .tx_free_thresh = 0,
-    .tx_rs_thresh = 0,
+    .tx_free_thresh = 16,
+    .tx_rs_thresh = 16,
 };
 
 /*

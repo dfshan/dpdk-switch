@@ -199,17 +199,100 @@ app_main_loop_worker(void) {
 }
 
 void
+app_main_loop_tx_each_port(uint32_t port_id) {
+	uint32_t i = port_id;
+    struct rte_mbuf* pkt;
+    /* next time allowed to transmit packets */
+	uint64_t current_time = rte_get_tsc_cycles();
+	uint64_t token;
+	uint64_t prev_time;
+
+    RTE_LOG(INFO, SWITCH, "Core %u is doing TX for port %u\n", rte_lcore_id(), port_id);
+
+    app.cpu_freq[rte_lcore_id()] = rte_get_tsc_hz();
+	token = app.bucket_size;
+    prev_time = current_time;
+    while(!force_quit) {
+        uint16_t n_mbufs, n_pkts;
+        int ret;
+
+        n_mbufs = app.mbuf_tx[i].n_mbufs;
+
+		current_time = rte_get_tsc_cycles();
+        if (app.tx_rate_mbps > 0) {
+			// tbf: generate tokens
+			token += (uint64_t) app.tx_rate_mbps * 1e6 / app.cpu_freq[app.core_tx[i]] / 8;
+			token *= (current_time - prev_time);
+			token = MIN(token, (app.bucket_size<<1));
+			prev_time = current_time;
+			if (token < app.bucket_size) {
+				continue;
+			}
+        }
+        ret = rte_ring_sc_dequeue(
+            app.rings_tx[i],
+            (void **) &app.mbuf_tx[i].array[n_mbufs]);
+
+        if (ret == -ENOENT) { /* no packets in tx ring */
+            continue;
+        }
+
+        pkt = app.mbuf_tx[i].array[n_mbufs];
+		app.qlen_bytes_out[i] += pkt->pkt_len;
+		app.qlen_pkts_out[i] ++;
+        if (app.tx_rate_mbps > 0) {
+			token -= pkt->pkt_len;
+		}
+
+        n_mbufs ++;
+
+        RTE_LOG(
+            DEBUG, SWITCH,
+            "%s: port %u receive %u packets\n",
+            __func__, app.ports[i], n_mbufs
+        );
+
+        if (n_mbufs < app.burst_size_tx_write) {
+            app.mbuf_tx[i].n_mbufs = n_mbufs;
+            continue;
+        }
+
+        uint16_t k = 0;
+        do {
+            n_pkts = rte_eth_tx_burst(
+                app.ports[i],
+                0,
+                &app.mbuf_tx[i].array[k],
+                n_mbufs - k);
+            k += n_pkts;
+            if (k < n_mbufs) {
+                RTE_LOG(
+                    DEBUG, SWITCH,
+                    "%s: Transmit ring is full in port %u\n",
+                    __func__, app.ports[i]
+                );
+            }
+        } while (k < n_mbufs);
+
+        app.mbuf_tx[i].n_mbufs = 0;
+    }
+}
+
+void
 app_main_loop_tx(void) {
     uint32_t i;
     struct rte_mbuf* pkt;
     /* next time allowed to transmit packets */
-    uint64_t next_tx_time[APP_MAX_PORTS];
+	uint64_t current_time = rte_get_tsc_cycles();
+	uint64_t token[APP_MAX_PORTS];
+	uint64_t prev_time[APP_MAX_PORTS];
 
     RTE_LOG(INFO, SWITCH, "Core %u is doing TX\n", rte_lcore_id());
 
     app.cpu_freq[rte_lcore_id()] = rte_get_tsc_hz();
     for (i = 0; i < app.n_ports; i++) {
-        next_tx_time[i] = rte_get_tsc_cycles();
+		token[i] = app.bucket_size;
+        prev_time[i] = current_time;
     }
     for (i = 0; !force_quit; i = ((i + 1) & (app.n_ports - 1))) {
         uint16_t n_mbufs, n_pkts;
@@ -217,29 +300,30 @@ app_main_loop_tx(void) {
 
         n_mbufs = app.mbuf_tx[i].n_mbufs;
 
-        uint64_t current_time = rte_get_tsc_cycles();
-        if (app.tx_rate_mbps > 0 && current_time < next_tx_time[i]) {
-            continue;
+		current_time = rte_get_tsc_cycles();
+        if (app.tx_rate_mbps > 0) {
+			// tbf: generate tokens
+			token[i] += (uint64_t) app.tx_rate_mbps * (current_time - prev_time[i]) * 1e6 / app.cpu_freq[app.core_tx[i]] / 8;
+			token[i] = MIN(token[i], (app.bucket_size<<1));
+			prev_time[i] = current_time;
+			if (token[i] < app.bucket_size) {
+				continue;
+			}
         }
         ret = rte_ring_sc_dequeue(
             app.rings_tx[i],
             (void **) &app.mbuf_tx[i].array[n_mbufs]);
 
         if (ret == -ENOENT) { /* no packets in tx ring */
-            next_tx_time[i] = current_time;
             continue;
         }
 
         pkt = app.mbuf_tx[i].array[n_mbufs];
 		app.qlen_bytes_out[i] += pkt->pkt_len;
 		app.qlen_pkts_out[i] ++;
-		app.buff_bytes_out += pkt->pkt_len;
-		app.buff_pkts_out ++;
         if (app.tx_rate_mbps > 0) {
-            // we assume that CPU is very fast
-            next_tx_time[i] = current_time + \
-							  pkt->pkt_len * app.cpu_freq[app.core_tx] * 8 / app.tx_rate_mbps / (1e6);
-        }
+			token[i] -= pkt->pkt_len;
+		}
 
         n_mbufs ++;
 
@@ -299,7 +383,12 @@ uint32_t get_qlen_bytes(uint32_t port_id) {
 }
 
 uint32_t get_buff_occu_bytes(void) {
-	return app.buff_bytes_in - app.buff_bytes_out;
+	uint32_t i, result = 0;
+	for (i = 0; i < app.n_ports; i++) {
+		result += (app.qlen_bytes_in[i] - app.qlen_bytes_out[i]);
+	}
+	return result;
+	//return app.buff_bytes_in - app.buff_bytes_out;
 }
 
 int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
@@ -342,8 +431,8 @@ int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
         }
 		app.qlen_bytes_in[dst_port] += pkt->pkt_len;
 		app.qlen_pkts_in[dst_port] ++;
-		app.buff_bytes_in += pkt->pkt_len;
-		app.buff_pkts_in ++;
+		/*app.buff_bytes_in += pkt->pkt_len;
+		app.buff_pkts_in ++;*/
         if (
 			app.log_qlen && pkt->pkt_len >= MEAN_PKT_SIZE &&
 			(app.log_qlen_port >= app.n_ports || app.log_qlen_port == dst_port)

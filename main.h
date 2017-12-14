@@ -50,6 +50,11 @@
 #define VALID_TIME INT_MAX // valid time (in ms) for a forwarding item
 #define MEAN_PKT_SIZE 800 // used for calculate ring length and # of mbuf pools
 
+ #define MIN(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
+
 typedef uint32_t (* get_threshold_callback_fn)(uint32_t port_id);
 struct app_mbuf_array {
     struct rte_mbuf *array[APP_MBUF_ARRAY_SIZE];
@@ -88,7 +93,7 @@ struct app_params {
     /* CPU cores */
     uint32_t core_rx;
     uint32_t core_worker;
-    uint32_t core_tx;
+    uint32_t core_tx[APP_MAX_PORTS];
 
     /* Ports*/
     uint32_t ports[APP_MAX_PORTS];
@@ -159,6 +164,7 @@ struct app_params {
 
 	uint32_t ecn_thresh_kb;
     uint32_t tx_rate_mbps; /* the rate (in Mbps) from tx ring to tx queue */
+	uint32_t bucket_size; /* bucket size (in bytes) of TBF algorithm */
 } __rte_cache_aligned;
 
 extern struct app_params app;
@@ -170,6 +176,7 @@ int app_lcore_main_loop(void *arg);
 
 void app_main_loop_rx(void);
 void app_main_loop_worker(void);
+void app_main_loop_tx_each_port(uint32_t);
 void app_main_loop_tx(void);
 
 /*
