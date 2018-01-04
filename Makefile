@@ -52,6 +52,7 @@ SRCS-y += init.c
 SRCS-y += runtime.c
 SRCS-y += forwarding.c
 SRCS-y += qlen-threshold.c
+SRCS-y += transmit.c
 
 include $(RTE_SDK)/mk/rte.extapp.mk
 

@@ -1,77 +1,3 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <sys/types.h>
-#include <string.h>
-#include <sys/queue.h>
-#include <stdarg.h>
-#include <errno.h>
-#include <getopt.h>
-#include <confuse.h>
-#include <stdbool.h>
-
-#include <rte_common.h>
-#include <rte_byteorder.h>
-#include <rte_log.h>
-#include <rte_memory.h>
-#include <rte_memcpy.h>
-#include <rte_memzone.h>
-#include <rte_eal.h>
-#include <rte_lcore.h>
-#include <rte_launch.h>
-#include <rte_atomic.h>
-#include <rte_cycles.h>
-#include <rte_prefetch.h>
-#include <rte_per_lcore.h>
-#include <rte_branch_prediction.h>
-#include <rte_interrupts.h>
-#include <rte_pci.h>
-#include <rte_random.h>
-#include <rte_debug.h>
-#include <rte_ether.h>
-#include <rte_ethdev.h>
-#include <rte_mempool.h>
-#include <rte_mbuf.h>
-#include <rte_ip.h>
-#include <rte_tcp.h>
-#include <rte_lpm.h>
-#include <rte_lpm6.h>
-#include <rte_string_fns.h>
-
 #include "main.h"
 
 // struct app_params app;
@@ -138,6 +64,7 @@ app_parse_port_mask(const char *arg) {
 
 static int
 app_read_config_file(const char *fname) {
+    uint64_t max_tx_rate_mbps = (((uint64_t)1<<(68-RATE_SCALE)) / 1e6);
     struct app_configs app_cfg = {
         .shared_memory = cfg_false,
         .buffer_size_kb = -1,
@@ -268,8 +195,17 @@ app_read_config_file(const char *fname) {
         app.ecn_enable = 0;
         app.ecn_thresh_kb = 0;
     }
-    app.tx_rate_mbps = (app_cfg.tx_rate_mbps >= 0 ? app_cfg.tx_rate_mbps: 0);
+    app.tx_rate_mbps = (app_cfg.tx_rate_mbps >= 0 ? app_cfg.tx_rate_mbps : 0);
     app.bucket_size = (app_cfg.bucket_size > ETHER_MIN_LEN ? app_cfg.bucket_size: app.bucket_size);
+    if (app.tx_rate_mbps > max_tx_rate_mbps) {
+        RTE_LOG(
+            ERR, SWITCH,
+            "%s: tx rate must be smaller than %luMbps to prevent integer overflow\n",
+            __func__,
+            max_tx_rate_mbps
+        );
+        app.tx_rate_mbps = 0;
+    }
     if (app_cfg.bucket_size < ETHER_MAX_LEN) {
         RTE_LOG(
             WARNING, SWITCH,
@@ -279,7 +215,7 @@ app_read_config_file(const char *fname) {
     }
     RTE_LOG(
         INFO, SWITCH,
-        "%s: tx_rate: %uMbps, tbf bucket size=%uB\n",
+        "%s: tx_rate: %luMbps, tbf bucket size=%uB\n",
         __func__, app.tx_rate_mbps, app.bucket_size
     );
     if (app.log_qlen) {
@@ -349,16 +285,18 @@ app_parse_args(int argc, char **argv) {
         n_lcores++;
     }
 
-    if (n_lcores != 2+app.n_ports) {
-        RTE_LOG(ERR, SWITCH, "# of cores must be %d\n", 2+app.n_ports);
+    //if (n_lcores != 2+app.n_ports) {
+    if (n_lcores < 3) {
+        RTE_LOG(ERR, SWITCH, "# of cores must be larger than 3.\n");
         return -1;
     }
 
     app.core_rx = lcores[0];
     app.core_worker = lcores[1];
-    for (i = 0; i < app.n_ports; i++) {
-        app.core_tx[i] = lcores[2+i];
+    for (i = 0; i < n_lcores ; i++) {
+        app.core_tx[i] = lcores[i+2];
     }
+    app.n_lcores = n_lcores;
     if (optind >= 0)
         argv[optind - 1] = prgname;
 

@@ -1,20 +1,3 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <string.h>
-#include <limits.h>
-#include <sys/time.h>
-#include <stdbool.h>
-
-#include <rte_common.h>
-#include <rte_eal.h>
-#include <rte_ethdev.h>
-#include <rte_cycles.h>
-#include <rte_lcore.h>
-#include <rte_mbuf.h>
-#include <rte_hash.h>
-#include <rte_hash_crc.h>
-
 #include "main.h"
 
 int

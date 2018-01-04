@@ -34,7 +34,52 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdarg.h>
+#include <inttypes.h>
+#include <unistd.h>
+#include <string.h>
+#include <errno.h>
+#include <limits.h>
+#include <getopt.h>
 #include <confuse.h>
+#include <sys/types.h>
+#include <sys/queue.h>
+#include <sys/time.h>
+
+#include <rte_common.h>
+#include <rte_byteorder.h>
+#include <rte_log.h>
+#include <rte_memory.h>
+#include <rte_memcpy.h>
+#include <rte_memzone.h>
+#include <rte_eal.h>
+#include <rte_per_lcore.h>
+#include <rte_launch.h>
+#include <rte_atomic.h>
+#include <rte_cycles.h>
+#include <rte_prefetch.h>
+#include <rte_lcore.h>
+#include <rte_branch_prediction.h>
+#include <rte_interrupts.h>
+#include <rte_pci.h>
+#include <rte_random.h>
+#include <rte_debug.h>
+#include <rte_ether.h>
+#include <rte_ethdev.h>
+#include <rte_ring.h>
+#include <rte_mempool.h>
+#include <rte_mbuf.h>
+#include <rte_ip.h>
+#include <rte_tcp.h>
+#include <rte_lpm.h>
+#include <rte_lpm6.h>
+#include <rte_malloc.h>
+#include <rte_hash.h>
+#include <rte_hash_crc.h>
 
 #ifndef APP_MBUF_ARRAY_SIZE
 #define APP_MBUF_ARRAY_SIZE 256
@@ -49,6 +94,7 @@
 #define MAX_NAME_LEN 100
 #define VALID_TIME INT_MAX // valid time (in ms) for a forwarding item
 #define MEAN_PKT_SIZE 800 // used for calculate ring length and # of mbuf pools
+#define RATE_SCALE 20 // the scale of tx rate
 
  #define MIN(a,b) \
    ({ __typeof__ (a) _a = (a); \
@@ -93,6 +139,7 @@ struct app_params {
     uint64_t cpu_freq[RTE_MAX_LCORE];
     uint64_t start_cycle;
     /* CPU cores */
+    uint32_t n_lcores;
     uint32_t core_rx;
     uint32_t core_worker;
     uint32_t core_tx[APP_MAX_PORTS];
@@ -168,8 +215,11 @@ struct app_params {
     uint64_t fwd_item_valid_time; /* valide time of forward item, in CPU cycles */
 
     uint32_t ecn_thresh_kb;
-    uint32_t tx_rate_mbps; /* the rate (in Mbps) from tx ring to tx queue */
+    uint64_t tx_rate_scale[APP_MAX_PORTS]; /* tx rate in bytes per CPU cycle * (1<<RATE_SCALE)*/
+    uint64_t tx_rate_mbps; /* the rate (in byte per second) from tx ring to tx queue */
     uint32_t bucket_size; /* bucket size (in bytes) of TBF algorithm */
+    uint64_t token[APP_MAX_PORTS]; /* # of tokens in each port */
+    uint64_t prev_time[APP_MAX_PORTS]; /* previous time in cycles to generate tokens */
 } __rte_cache_aligned;
 
 extern struct app_params app;
@@ -183,6 +233,7 @@ void app_main_loop_rx(void);
 void app_main_loop_worker(void);
 void app_main_loop_tx_each_port(uint32_t);
 void app_main_loop_tx(void);
+void app_main_tx_port(uint32_t);
 
 /*
  * Initialize forwarding table.
