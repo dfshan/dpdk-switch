@@ -49,10 +49,10 @@ LDLIBS += -lconfuse
 SRCS-y := main.c
 SRCS-y += config.c
 SRCS-y += init.c
-SRCS-y += runtime.c
+SRCS-y += receive.c
 SRCS-y += forwarding.c
-SRCS-y += qlen-threshold.c
 SRCS-y += transmit.c
+SRCS-y += output_queue.c
 
 include $(RTE_SDK)/mk/rte.extapp.mk
 
