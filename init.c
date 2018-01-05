@@ -46,6 +46,10 @@ struct app_params app = {
 	.ecn_thresh_kb = 0,
     .tx_rate_mbps = 0,
 	.bucket_size = 3200,
+
+    .cedm_enable = 0,
+    .cedm_ws = 0.0,
+    .cedm_thresh2_kb = 0,
 };
 
 static struct rte_eth_conf port_conf = {
@@ -160,6 +164,8 @@ app_init_rings(void) {
             rte_panic("Cannot create TX ring %u\n", i);
         app.qlen_bytes_in[i] = app.qlen_pkts_in[i] = 0;
         app.qlen_bytes_out[i] = app.qlen_pkts_out[i] = 0;
+        app.prev_qlen_bytes[i] = app.prev_dequeue_time[i] = 0;
+        app.cedm_avg_slope[i] = 0;
     }
 
 }

@@ -26,16 +26,22 @@ uint32_t get_buff_occu_bytes(void) {
     //return app.buff_bytes_in - app.buff_bytes_out;
 }
 
+static int ipv4_set_ecn_bit(struct ipv4_hdr *iphdr, uint8_t bit) {
+    uint16_t cksum;
+    uint8_t tos = iphdr->type_of_service;
+    iphdr->type_of_service = (tos &  0xfc) + (bit & 3);
+    iphdr->hdr_checksum = 0;
+    cksum = rte_ipv4_cksum(iphdr);
+    iphdr->hdr_checksum = cksum;
+    return 0;
+}
+
 static int mark_packet_with_ecn(struct rte_mbuf *pkt) {
     struct ipv4_hdr *iphdr;
-    uint16_t cksum;
     if (RTE_ETH_IS_IPV4_HDR(pkt->packet_type)) {
         iphdr = rte_pktmbuf_mtod_offset(pkt, struct ipv4_hdr *, sizeof(struct ether_hdr));
         if ((iphdr->type_of_service & 0x03) != 0) {
-            iphdr->type_of_service |= 0x3;
-            iphdr->hdr_checksum = 0;
-            cksum = rte_ipv4_cksum(iphdr);
-            iphdr->hdr_checksum = cksum;
+            ipv4_set_ecn_bit(iphdr, 3);
         } else {
             return -2;
         }
@@ -64,13 +70,17 @@ int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
     } else if (qlen_enque > app.buff_size_per_port_bytes) {
         ret = -2;
     }
-    if (ret == 0 && mark_pkt) {
-        /* do ecn marking */
-        mark_ret = mark_packet_with_ecn(pkt);
-        if (mark_ret < 0) {
-            ret = -3;
+    if (ret == 0 && pkt->pkt_len > 100 && mark_pkt) {
+        if (app.cedm_enable) {
+            cedm_before_enqueue(dst_port, pkt);
+        } else {
+            /* do ecn marking */
+            mark_ret = mark_packet_with_ecn(pkt);
+            if (mark_ret < 0) {
+                ret = -3;
+            }
+            /* end */
         }
-        /* end */
     }
     if (ret == 0) {
         int enque_ret = rte_ring_sp_enqueue(
@@ -97,11 +107,12 @@ int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
             }
             fprintf(
                 app.qlen_file,
-                "%-12.6f %-8u %-8u %-8u\n",
+                "%-12.6f %-8u %-8u %-8u %f\n",
                 (float) (rte_get_tsc_cycles() - app.qlen_start_cycle) / app.cpu_freq[rte_lcore_id()],
                 app.ports[dst_port],
                 qlen_bytes,
-                buff_occu_bytes
+                buff_occu_bytes,
+                app.cedm_avg_slope[dst_port]
             );
         }
     } else {
@@ -136,4 +147,75 @@ int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
         );
     }
     return ret;
+}
+
+void cedm_before_enqueue(uint32_t port, struct rte_mbuf *pkt) {
+    uint8_t tos_ecn;
+    uint32_t qlen_bytes;
+    double avg_slope;
+    struct ipv4_hdr *iphdr = NULL;
+    if (RTE_ETH_IS_IPV4_HDR(pkt->packet_type)) {
+        iphdr = rte_pktmbuf_mtod_offset(pkt, struct ipv4_hdr *, sizeof(struct ether_hdr));
+    } else {
+        return ;
+    }
+    tos_ecn = (iphdr->type_of_service & 3);
+    if (tos_ecn == 0) {
+        return ;
+    }
+    qlen_bytes = get_qlen_bytes(port);
+    avg_slope = app.cedm_avg_slope[port];
+    if (qlen_bytes >= (app.cedm_thresh2_kb<<10)) {
+        ipv4_set_ecn_bit(iphdr, 3);
+    } if (qlen_bytes >= (app.ecn_thresh_kb<<10) && avg_slope >= 0) {
+        ipv4_set_ecn_bit(iphdr, 1);
+    }
+}
+
+void cedm_after_dequeue(uint32_t port, struct rte_mbuf *pkt) {
+    uint32_t qlen_bytes;
+    int32_t qlen_diff;
+    uint64_t current_time, intvl;
+    uint8_t tos_ecn;
+    double slope, avg_slope;
+    struct ipv4_hdr *iphdr = NULL;
+    current_time = rte_get_tsc_cycles();
+    qlen_bytes = get_qlen_bytes(port);
+    avg_slope = app.cedm_avg_slope[port];
+    if (pkt->pkt_len > MEAN_PKT_SIZE) {
+        if (unlikely(app.prev_dequeue_time[port] == 0)) {
+            app.prev_dequeue_time[port] = current_time;
+            app.prev_qlen_bytes[port] = qlen_bytes;
+            app.cedm_avg_slope[port] = 0;
+            return ;
+        }
+        /* Update slope */
+        qlen_diff = qlen_bytes - app.prev_qlen_bytes[port];
+        intvl = current_time - app.prev_dequeue_time[port];
+        slope = qlen_diff;
+        slope = slope / intvl;
+        avg_slope = (1.0 - app.cedm_ws) * avg_slope + app.cedm_ws * slope;
+        app.cedm_avg_slope[port] = avg_slope;
+        app.prev_dequeue_time[port] = current_time;
+        app.prev_qlen_bytes[port] = qlen_bytes;
+    }
+
+    if (RTE_ETH_IS_IPV4_HDR(pkt->packet_type)) {
+        iphdr = rte_pktmbuf_mtod_offset(pkt, struct ipv4_hdr *, sizeof(struct ether_hdr));
+    } else {
+        return ;
+    }
+    tos_ecn = (iphdr->type_of_service & 3);
+    if (tos_ecn == 0) {
+        return ;
+    }
+    if (qlen_bytes >= (app.cedm_thresh2_kb<<10)) {
+        ipv4_set_ecn_bit(iphdr, 3);
+    } else if (tos_ecn == 1) {
+        if (qlen_bytes >= (app.ecn_thresh_kb<<10) && avg_slope >= 0) {
+            ipv4_set_ecn_bit(iphdr, 3);
+        } else {
+            ipv4_set_ecn_bit(iphdr, 2);
+        }
+    }
 }

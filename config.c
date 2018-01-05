@@ -77,6 +77,9 @@ app_read_config_file(const char *fname) {
         .ecn_thresh_kb = -1,
         .tx_rate_mbps = -1,
         .bucket_size = -1,
+        .cedm_enable = cfg_false,
+        .cedm_ws = -1,
+        .cedm_k2_kb = -1,
         .cfg = NULL
     };
     cfg_opt_t opts[] = {
@@ -91,6 +94,9 @@ app_read_config_file(const char *fname) {
         CFG_SIMPLE_INT("ecn_threshold", &app_cfg.ecn_thresh_kb),
         CFG_SIMPLE_INT("tx_rate_mbps", &app_cfg.tx_rate_mbps),
         CFG_SIMPLE_INT("bucket_size", &app_cfg.bucket_size),
+        CFG_SIMPLE_BOOL("cedm_enable", &app_cfg.cedm_enable),
+        CFG_SIMPLE_FLOAT("cedm_ws", &app_cfg.cedm_ws),
+        CFG_SIMPLE_INT("cedm_k2_kb", &app_cfg.cedm_k2_kb),
         CFG_END()
     };
     app_cfg.cfg = cfg_init(opts, 0);
@@ -188,12 +194,35 @@ app_read_config_file(const char *fname) {
             }
         }
     }
+    if (app.log_qlen) {
+        if (app.log_qlen_port >= 0 && app.log_qlen_port < app.n_ports) {
+            RTE_LOG(
+                INFO, SWITCH,
+                "%s: Queue length logging is enabled for port %u. Logging is dumped into file %s\n",
+                __func__, app.log_qlen_port, app_cfg.qlen_fname
+            );
+        } else {
+            RTE_LOG(
+                WARNING, SWITCH,
+                "%s: Queue length logging is enabled for all ports. \
+                Logging is dumped into file %s\n",
+                __func__, app_cfg.qlen_fname
+            );
+        }
+    }
     if (app_cfg.ecn_enable && app_cfg.ecn_thresh_kb >= 0) {
         app.ecn_enable = 1;
         app.ecn_thresh_kb = app_cfg.ecn_thresh_kb;
     } else {
         app.ecn_enable = 0;
         app.ecn_thresh_kb = 0;
+    }
+    if (app.ecn_enable) {
+        RTE_LOG(
+            INFO, SWITCH,
+            "%s: ECN marking is enabled, ECN threshold=%uKiB.\n",
+            __func__, app.ecn_thresh_kb
+        );
     }
     app.tx_rate_mbps = (app_cfg.tx_rate_mbps >= 0 ? app_cfg.tx_rate_mbps : 0);
     app.bucket_size = (app_cfg.bucket_size > ETHER_MIN_LEN ? app_cfg.bucket_size: app.bucket_size);
@@ -218,28 +247,21 @@ app_read_config_file(const char *fname) {
         "%s: tx_rate: %luMbps, tbf bucket size=%uB\n",
         __func__, app.tx_rate_mbps, app.bucket_size
     );
-    if (app.log_qlen) {
-        if (app.log_qlen_port >= 0 && app.log_qlen_port < app.n_ports) {
-            RTE_LOG(
-                INFO, SWITCH,
-                "%s: Queue length logging is enabled for port %u. Logging is dumped into file %s\n",
-                __func__, app.log_qlen_port, app_cfg.qlen_fname
-            );
+    if (app.ecn_enable && app_cfg.cedm_enable) {
+        app.cedm_enable = 1;
+        if (app_cfg.cedm_k2_kb > app.ecn_thresh_kb) {
+            app.cedm_thresh2_kb = app_cfg.cedm_k2_kb;
         } else {
-            RTE_LOG(
-                WARNING, SWITCH,
-                "%s: Queue length logging is enabled for all ports. \
-                Logging is dumped into file %s\n",
-                __func__, app_cfg.qlen_fname
-            );
+            app.cedm_thresh2_kb = (5 * app.ecn_thresh_kb + 125) >> 2;
         }
-    }
-    if (app.ecn_enable) {
+        app.cedm_ws = app_cfg.cedm_ws;
         RTE_LOG(
             INFO, SWITCH,
-            "%s: ECN marking is enabled, ECN threshold=%uKiB.\n",
-            __func__, app.ecn_thresh_kb
+            "%s: CEDM is enabled, K1=%uKiB, K2=%uKiB, ws=%.6f.\n",
+            __func__, app.ecn_thresh_kb, app.cedm_thresh2_kb, app.cedm_ws
         );
+    } else {
+        app.cedm_enable = 0;
     }
     cfg_free(app_cfg.cfg);
     free(app_cfg.bm_policy);

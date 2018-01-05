@@ -129,6 +129,9 @@ struct app_configs {
     long ecn_thresh_kb;
     long tx_rate_mbps;
     long bucket_size; /* bucket size (in bytes) of TBF algorithm */
+    cfg_bool_t cedm_enable;
+    double cedm_ws;
+    long cedm_k2_kb;
     cfg_t *cfg;
 };
 
@@ -161,7 +164,8 @@ struct app_params {
         log_qlen_port:5,
         dt_shift_alpha:14, /* parameter alpha of DT = 1 << dt_shift_alpha*/
         ecn_enable:1,
-        unused:10;
+        cedm_enable:1,
+        unused:1;
     uint64_t qlen_start_cycle;
 
     FILE* qlen_file;
@@ -220,6 +224,13 @@ struct app_params {
     uint32_t bucket_size; /* bucket size (in bytes) of TBF algorithm */
     uint64_t token[APP_MAX_PORTS]; /* # of tokens in each port */
     uint64_t prev_time[APP_MAX_PORTS]; /* previous time in cycles to generate tokens */
+
+    uint32_t prev_qlen_bytes[APP_MAX_PORTS];
+    uint64_t prev_dequeue_time[APP_MAX_PORTS];
+    uint32_t cedm_thresh2_kb;
+    double cedm_ws; /* Parameter ws of CEDM */
+    /* average slope in byte per cpu cycle*/
+    double cedm_avg_slope[APP_MAX_PORTS];
 } __rte_cache_aligned;
 
 extern struct app_params app;
@@ -253,13 +264,17 @@ int app_l2_lookup(const struct ether_addr* addr);
 
 uint32_t get_qlen_bytes(uint32_t port_id);
 uint32_t get_buff_occu_bytes(void);
+
 /*
  * Wrapper for enqueue
  * Returns:
  *  0: succeed, < 0: packet dropped
  *  -1: queue length > threshold, -2: buffer overflow, -3: other unknown reason
 */
-int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt);
+int packet_enqueue(uint32_t, struct rte_mbuf *);
+
+void cedm_before_enqueue(uint32_t, struct rte_mbuf *);
+void cedm_after_dequeue(uint32_t, struct rte_mbuf *);
 
 /*
  * Get port qlen threshold for a port

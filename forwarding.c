@@ -119,11 +119,12 @@ app_main_loop_worker(void) {
     if (app.log_qlen) {
         fprintf(
             app.qlen_file,
-            "# %-10s %-8s %-8s %-8s\n",
+            "# %-10s %-8s %-8s %-8s %s\n",
             "<Time (in s)>",
             "<Port id>",
             "<Qlen in Bytes>",
-            "<Buffer occupancy in Bytes>"
+            "<Buffer occupancy in Bytes>",
+            "<avg slope>"
         );
         fflush(app.qlen_file);
     }

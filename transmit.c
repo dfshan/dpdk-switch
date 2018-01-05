@@ -96,6 +96,9 @@ void app_main_tx_port(uint32_t port_id) {
         token -= pkt->pkt_len;
         app.token[port_id] = token;
     }
+    if (app.cedm_enable) {
+        cedm_after_dequeue(port_id, pkt);
+    }
 
     n_mbufs ++;
 
