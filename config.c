@@ -64,7 +64,6 @@ app_parse_port_mask(const char *arg) {
 
 static int
 app_read_config_file(const char *fname) {
-    uint64_t max_tx_rate_mbps = (((uint64_t)1<<(68-RATE_SCALE)) / 1e6);
     struct app_configs app_cfg = {
         .shared_memory = cfg_false,
         .buffer_size_kb = -1,
@@ -103,7 +102,7 @@ app_read_config_file(const char *fname) {
     if (cfg_parse(app_cfg.cfg, fname) == CFG_FILE_ERROR) {
         RTE_LOG(
             ERR, SWITCH,
-            "%s: Configuration file %s cannot open for reading.\n",
+            "%s: Configuration file '%s' cannot open for reading.\n",
             __func__, fname
         );
         if (app_cfg.cfg != NULL) {
@@ -152,16 +151,6 @@ app_read_config_file(const char *fname) {
             app.shared_memory = 0;
         }
     }
-    if (!app.shared_memory) {
-        app.buff_size_per_port_bytes = app.buff_size_bytes / app.n_ports;
-        RTE_LOG(
-            INFO, SWITCH,
-            "%s: shared memory disabled, each port has %uB/%uKiB buffer.\n",
-            __func__,
-            app.buff_size_per_port_bytes,
-            app.buff_size_per_port_bytes / 1024
-        );
-    }
     if (app_cfg.log_qlen) {
         if (app_cfg.qlen_fname == NULL) {
             RTE_LOG(
@@ -175,7 +164,7 @@ app_read_config_file(const char *fname) {
                 perror("Open file error:");
                 RTE_LOG(
                     ERR, SWITCH,
-                    "%s: Cannot open queue length log file %s\n",
+                    "%s: Cannot open queue length log file '%s'\n",
                     __func__, app_cfg.qlen_fname
                 );
             } else {
@@ -217,6 +206,44 @@ app_read_config_file(const char *fname) {
         app.ecn_enable = 0;
         app.ecn_thresh_kb = 0;
     }
+    app.tx_rate_mbps = (app_cfg.tx_rate_mbps >= 0 ? app_cfg.tx_rate_mbps : 0);
+    app.bucket_size = (app_cfg.bucket_size > ETHER_MIN_LEN ? app_cfg.bucket_size: app.bucket_size);
+    if (app_cfg.bucket_size < ETHER_MAX_LEN) {
+        RTE_LOG(
+            WARNING, SWITCH,
+            "%s: TBF bucket size (given %ldB) is smaller than MTU(%uB)\n",
+            __func__, app_cfg.bucket_size, ETHER_MAX_LEN
+        );
+    }
+    if (app.ecn_enable && app_cfg.cedm_enable) {
+        app.cedm_enable = 1;
+        if (app_cfg.cedm_k2_kb > app.ecn_thresh_kb) {
+            app.cedm_thresh2_kb = app_cfg.cedm_k2_kb;
+        } else {
+            app.cedm_thresh2_kb = (5 * app.ecn_thresh_kb + 125) >> 2;
+        }
+        app.cedm_ws = app_cfg.cedm_ws;
+    } else {
+        app.cedm_enable = 0;
+    }
+    cfg_free(app_cfg.cfg);
+    free(app_cfg.bm_policy);
+    free(app_cfg.qlen_fname);
+    return 0;
+}
+
+static void app_finish_config(void) {
+    uint64_t max_tx_rate_mbps = (((uint64_t)1<<(68-RATE_SCALE)) / 1e6);
+    if (!app.shared_memory) {
+        app.buff_size_per_port_bytes = app.buff_size_bytes / app.n_ports;
+        RTE_LOG(
+            INFO, SWITCH,
+            "%s: shared memory disabled, each port has %uB/%uKiB buffer.\n",
+            __func__,
+            app.buff_size_per_port_bytes,
+            app.buff_size_per_port_bytes / 1024
+        );
+    }
     if (app.ecn_enable) {
         RTE_LOG(
             INFO, SWITCH,
@@ -224,8 +251,6 @@ app_read_config_file(const char *fname) {
             __func__, app.ecn_thresh_kb
         );
     }
-    app.tx_rate_mbps = (app_cfg.tx_rate_mbps >= 0 ? app_cfg.tx_rate_mbps : 0);
-    app.bucket_size = (app_cfg.bucket_size > ETHER_MIN_LEN ? app_cfg.bucket_size: app.bucket_size);
     if (app.tx_rate_mbps > max_tx_rate_mbps) {
         RTE_LOG(
             ERR, SWITCH,
@@ -235,38 +260,18 @@ app_read_config_file(const char *fname) {
         );
         app.tx_rate_mbps = 0;
     }
-    if (app_cfg.bucket_size < ETHER_MAX_LEN) {
-        RTE_LOG(
-            WARNING, SWITCH,
-            "%s: TBF bucket size (given %ldB) is smaller than MTU(%uB)\n",
-            __func__, app_cfg.bucket_size, ETHER_MAX_LEN
-        );
-    }
     RTE_LOG(
         INFO, SWITCH,
         "%s: tx_rate: %luMbps, tbf bucket size=%uB\n",
         __func__, app.tx_rate_mbps, app.bucket_size
     );
-    if (app.ecn_enable && app_cfg.cedm_enable) {
-        app.cedm_enable = 1;
-        if (app_cfg.cedm_k2_kb > app.ecn_thresh_kb) {
-            app.cedm_thresh2_kb = app_cfg.cedm_k2_kb;
-        } else {
-            app.cedm_thresh2_kb = (5 * app.ecn_thresh_kb + 125) >> 2;
-        }
-        app.cedm_ws = app_cfg.cedm_ws;
+    if (app.cedm_enable) {
         RTE_LOG(
             INFO, SWITCH,
             "%s: CEDM is enabled, K1=%uKiB, K2=%uKiB, ws=%.6f.\n",
             __func__, app.ecn_thresh_kb, app.cedm_thresh2_kb, app.cedm_ws
         );
-    } else {
-        app.cedm_enable = 0;
     }
-    cfg_free(app_cfg.cfg);
-    free(app_cfg.bm_policy);
-    free(app_cfg.qlen_fname);
-    return 0;
 }
 
 int
@@ -325,5 +330,6 @@ app_parse_args(int argc, char **argv) {
     ret = optind - 1;
     optind = 1; /* reset getopt lib */
     app_read_config_file("switch.conf");
+    app_finish_config();
     return ret;
 }
