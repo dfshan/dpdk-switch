@@ -5,13 +5,14 @@ pcs="hosts.info"
 exp_pc="192.168.1.224"
 recv_ip="192.168.0.224"
 #ecn_ks=$(seq 2 2 40)
-ecn_ks=$(seq 60 2 200)
+#ecn_ks=$(seq 60 5 200)
+ecn_ks=$(seq 40 2 80)
 log_dir="throughput-k"
 switch_dir="$HOME/dpdk-switch"
 tcp_dir="$HOME/tcp-test"
 client_num=2
 
-USAGE="USAGE: $0 <protocol: dctcp|ecn> <tso: on|off> <cedm: on|off> <client number>"
+USAGE="USAGE: $0 <protocol: dctcp|ecn> <tso: on|off> <cedm: on|off> <client number> [ecn thresholds in lists]"
 if (($# < 4)); then
     echo $USAGE
     exit
@@ -20,6 +21,9 @@ protocol="$1"
 tso="$2"
 cedm="$3"
 client_num="$4"
+if (($# >= 5)); then
+    ecn_ks="$5"
+fi
 if [ "$protocol" != 'dctcp' -a "$protocol" != 'ecn' ]; then
     echo "Argument 1 should be either 'dctcp' or 'ecn'!"
     echo $USAGE
@@ -108,11 +112,12 @@ function check_dir () {
 }
 
 #check_dir $log_dir
+mkdir -p $log_dir
 
 sudo pkill -9 main
 sudo $switch_dir/build/app/main -c 0xe --log-level=7 -- -p 0xf &
-sleep 10s
-#init_network
+sleep 5s
+init_network
 set_network $protocol $tso
 (cd $switch_dir; make)
 log_prefix="${protocol}_tso_${tso}_k_"
@@ -139,7 +144,7 @@ for k in $ecn_ks; do
     sleep 5s
     sudo $switch_dir/build/app/main -c 0xe --log-level=7 -- -p 0xf &
     switch_pid=$!
-    sleep 15s
+    sleep 10s
     # start server
     ssh $exp_pc "$tcp_dir/tcp_server 5 6666 > /dev/null &"
     # start clients
@@ -160,10 +165,11 @@ for k in $ecn_ks; do
         ssh -n $exp_pc "$cmd"
         num=$(($num+1))
     done < $pcs
-    sleep 21s
+    sleep 31s
     ssh -n $exp_pc "pkill -9 tcp_server"
     sudo kill -2 $switch_pid
-    throughput=$(ssh $exp_pc "cat ~/throughput.log | tail -2 | head -1")
-    throughput=$(echo $throughput | awk '{print $2}')
+    throughput=$(ssh $exp_pc "cat ~/throughput.log")
+    throughput=$(echo "$throughput" | awk 'NR>1 {sum += $2} END{sum -= $2; print int(sum/(NR-2))}')
     echo "$k $throughput" >> $log_dir/$log_fname
 done
+sudo pkill -9 main
