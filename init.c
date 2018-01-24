@@ -8,7 +8,7 @@ struct app_params app = {
 
     /* switch buffer */
     .shared_memory = 0,
-    .buff_size_bytes = 256,
+    .buff_size_bytes = (256 << 10),
     .buff_bytes_in = 0,
     .buff_pkts_in = 0,
     .buff_bytes_out = 0,
@@ -84,8 +84,8 @@ static struct rte_eth_txconf tx_conf = {
         .hthresh = 0,
         .wthresh = 0,
     },
-    .tx_free_thresh = 0,
-    .tx_rs_thresh = 0,
+    .tx_free_thresh = 24,
+    .tx_rs_thresh = 16,
 };
 
 /*
