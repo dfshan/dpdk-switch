@@ -103,7 +103,7 @@ app_lcore_main_loop(__attribute__((unused)) void *arg) {
     }
 
     if (lcore == app.core_worker) {
-        app_main_loop_worker();
+        app_main_loop_forwarding();
         return 0;
     }
 

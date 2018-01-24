@@ -304,7 +304,7 @@ app_parse_args(int argc, char **argv) {
 
     app.core_rx = lcores[0];
     app.core_worker = lcores[1];
-    for (i = 0; i < n_lcores ; i++) {
+    for (i = 0; i < n_lcores-2; i++) {
         app.core_tx[i] = lcores[i+2];
     }
     app.n_lcores = n_lcores;
