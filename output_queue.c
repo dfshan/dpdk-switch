@@ -88,9 +88,9 @@ int packet_enqueue(uint32_t dst_port, struct rte_mbuf *pkt) {
         app.qlen_pkts_in[dst_port] ++;
         /*app.buff_bytes_in += pkt->pkt_len;
         app.buff_pkts_in ++;*/
-        if (
-            app.log_qlen && pkt->pkt_len >= MEAN_PKT_SIZE &&
-            (app.log_qlen_port >= app.n_ports || app.log_qlen_port == dst_port)
+        if (app.log_qlen && pkt->pkt_len >= MEAN_PKT_SIZE &&
+            (app.log_qlen_port >= app.n_ports ||
+             app.log_qlen_port == app.ports[dst_port])
         ) {
             if (app.qlen_start_cycle == 0) {
                 app.qlen_start_cycle = rte_get_tsc_cycles();

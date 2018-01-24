@@ -46,6 +46,14 @@ app_parse_port_mask(const char *arg) {
         }
 
         app.ports[app.n_ports] = i;
+
+        RTE_LOG(
+            INFO, SWITCH,
+            "%s: port map: app.n_ports[%u] = %u\n",
+            __func__,
+            app.n_ports, i
+        );
+
         app.n_ports++;
     }
 
