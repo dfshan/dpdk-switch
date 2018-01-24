@@ -103,14 +103,14 @@ app_l2_lookup(const struct ether_addr* addr) {
 }
 
 void
-app_main_loop_worker(void) {
+app_main_loop_forwarding(void) {
     struct app_mbuf_array *worker_mbuf;
     struct ether_hdr *eth;
     struct rte_mbuf* new_pkt;
     uint32_t i, j;
     int dst_port;
 
-    RTE_LOG(INFO, SWITCH, "Core %u is doing work (no pipeline)\n",
+    RTE_LOG(INFO, SWITCH, "Core %u is doing forwarding\n",
         rte_lcore_id());
 
     app.cpu_freq[rte_lcore_id()] = rte_get_tsc_hz();

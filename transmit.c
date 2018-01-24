@@ -55,6 +55,7 @@ void
 app_main_loop_tx_each_port(uint32_t port_id) {
 
     RTE_LOG(INFO, SWITCH, "Core %u is doing TX for port %u\n", rte_lcore_id(), app.ports[port_id]);
+    init_tx(port_id);
     while(!force_quit) {
         app_main_tx_port(port_id);
     }

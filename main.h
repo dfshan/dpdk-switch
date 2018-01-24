@@ -145,7 +145,7 @@ struct app_params {
     uint32_t n_lcores;
     uint32_t core_rx;
     uint32_t core_worker;
-    uint32_t core_tx[APP_MAX_PORTS];
+    uint32_t core_tx[RTE_MAX_LCORE];
 
     /* Ports*/
     uint32_t ports[APP_MAX_PORTS];
@@ -241,7 +241,7 @@ void app_init(void);
 int app_lcore_main_loop(void *arg);
 
 void app_main_loop_rx(void);
-void app_main_loop_worker(void);
+void app_main_loop_forwarding(void);
 void app_main_loop_tx_each_port(uint32_t);
 void app_main_loop_tx(void);
 void app_main_tx_port(uint32_t);
