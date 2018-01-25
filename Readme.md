@@ -2,6 +2,7 @@
 This is a l2 learning switch based on DPDK.
 
 # Features
+* ECN marking
 * Fine-grained queue length monitoring
 * Shared Memory
 
@@ -36,9 +37,9 @@ Bibtex:
         journal={IEEE Transactions on Parallel and Distributed Systems},
         title={Analyzing and Enhancing Dynamic Threshold Policy of Data Center Switches},
         year={2017},
-        volume={PP},
-        number={99},
-        pages={1-1},
+        volume={28},
+        number={9},
+        pages={2454-2470},
         doi={10.1109/TPDS.2017.2671429},
         ISSN={1045-9219},
-        month={},}
+        month={Sept},}
